@@ -1,16 +1,3 @@
-/*
-  Round income data.
-
-  Replace the 0 values with your spreadsheet values.
-  Keep the round number on the left and the cash gained from popping bloons / end-of-round income on the right.
-
-  Example:
-  1: 121,
-  2: 138,
-
-  Max round for this framework is 140.
-*/
-
 window.BTD6_ROUND_INCOME = {
   1: 0,
   2: 0,

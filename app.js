@@ -1,33 +1,27 @@
 const MAX_ROUND = 140;
+const TICKS_PER_ROUND = 1260;
+const PATH_KEYS = ["top", "middle", "bottom"];
+const PATH_INDEX = { top: 0, middle: 1, bottom: 2 };
+const PATH_LABELS = { top: "Top", middle: "Middle", bottom: "Bottom" };
 
 const state = {
-  settings: {
-    mode: "Timed",
-    goal: "money",
-    targetCashByRound: "",
-    startingCash: 650,
-    startingLives: 200,
-    monkeyKnowledge: true,
-    selectedHero: "Quincy",
-    maxTowers: 999,
-    maxBananaFarms: 999,
-    maxBoatSpots: 0
-  },
-
+  settings: { mode: "Timed", goal: "money", targetCashByRound: "", roundStart: 1, startingCash: 650, monkeyKnowledge: true, selectedHero: "Quincy", maxTowers: 999, maxBananaFarms: 999, maxBoatSpots: 0 },
   endRound: 40,
   events: [],
   monkeyInstances: {},
-  towerCounts: {},
+  buffs: [],
   selectedEventId: null,
+  inspectorTab: "action",
   nextEventNumber: 1,
-  nextMonkeyNumber: 1
+  nextMonkeyNumber: 1,
+  nextBuffNumber: 1
 };
 
 const el = {
   targetCashSubsection: document.getElementById("targetCashSubsection"),
   targetCashByRound: document.getElementById("targetCashByRound"),
+  roundStart: document.getElementById("roundStart"),
   startingCash: document.getElementById("startingCash"),
-  startingLives: document.getElementById("startingLives"),
   monkeyKnowledge: document.getElementById("monkeyKnowledge"),
   selectedHero: document.getElementById("selectedHero"),
   maxTowers: document.getElementById("maxTowers"),
@@ -46,906 +40,75 @@ const el = {
   toast: document.getElementById("toast")
 };
 
-function init() {
-  hydrateIcons();
-  bindGlobalControls();
-  bindTabs();
-  renderAll();
+function init(){hydrateIcons();bindGlobalControls();bindTabs();renderAll();}
+function hydrateIcons(root=document){root.querySelectorAll("[data-icon-key]").forEach(slot=>{slot.innerHTML=iconHtml(slot.dataset.iconKey);});}
+function iconHtml(key){const entry=window.BTD6_IMAGES?.[key];if(!entry)return `<span class="icon-fallback">❔</span>`;if(entry.src)return `<img class="icon-img" src="${entry.src}" alt="${key}" draggable="false">`;return `<span class="icon-fallback">${entry.fallback||"●"}</span>`;}
+
+function bindGlobalControls(){
+  document.querySelectorAll(".segment-option").forEach(button=>{button.addEventListener("click",()=>{const setting=button.dataset.setting;const value=button.dataset.value;button.parentElement.querySelectorAll(".segment-option").forEach(other=>other.classList.remove("active"));button.classList.add("active");state.settings[setting]=value;updateConditionalControls();});});
+  [["targetCashByRound","targetCashByRound","string"],["roundStart","roundStart","number"],["startingCash","startingCash","number"],["selectedHero","selectedHero","string"],["maxTowers","maxTowers","number"],["maxBananaFarms","maxBananaFarms","number"],["maxBoatSpots","maxBoatSpots","number"]].forEach(([elementKey,settingKey,type])=>{el[elementKey].addEventListener("input",event=>{let value=type==="number"?Number(event.target.value):event.target.value;if(settingKey==="roundStart"){value=clamp(value||1,1,MAX_ROUND);event.target.value=value;}state.settings[settingKey]=value;renderRoundTable();renderCumulative();renderExistingTowers();});});
+  el.monkeyKnowledge.addEventListener("change",event=>{state.settings.monkeyKnowledge=event.target.checked;});
+  el.endRoundInput.addEventListener("input",event=>{const value=clamp(Number(event.target.value||1),1,MAX_ROUND);state.endRound=value;event.target.value=value;});
+  el.buildRoundsButton.addEventListener("click",()=>{state.endRound=clamp(Number(el.endRoundInput.value||1),1,MAX_ROUND);el.endRoundInput.value=state.endRound;renderRoundTable();renderCumulative();renderExistingTowers();});
+  el.calculateButton.addEventListener("click",runCalculator);
+  el.clearSelectionButton.addEventListener("click",()=>{state.selectedEventId=null;renderInspector();renderRoundTable();});
+  document.querySelectorAll("[data-inspector-tab]").forEach(button=>{button.addEventListener("click",()=>{state.inspectorTab=button.dataset.inspectorTab;document.querySelectorAll("[data-inspector-tab]").forEach(other=>other.classList.toggle("active",other.dataset.inspectorTab===state.inspectorTab));renderInspector();});});
 }
 
-function hydrateIcons(root = document) {
-  root.querySelectorAll("[data-icon-key]").forEach(slot => {
-    const key = slot.dataset.iconKey;
-    slot.innerHTML = iconHtml(key);
-  });
-}
-
-function iconHtml(key) {
-  const entry = window.BTD6_IMAGES?.[key];
-
-  if (!entry) {
-    return `<span class="icon-fallback">❔</span>`;
-  }
-
-  if (entry.src) {
-    return `<img class="icon-img" src="${entry.src}" alt="${key}" draggable="false">`;
-  }
-
-  return `<span class="icon-fallback">${entry.fallback || "●"}</span>`;
-}
-
-function bindGlobalControls() {
-  document.querySelectorAll(".segment-option").forEach(button => {
-    button.addEventListener("click", () => {
-      const setting = button.dataset.setting;
-      const value = button.dataset.value;
-
-      button.parentElement
-        .querySelectorAll(".segment-option")
-        .forEach(other => other.classList.remove("active"));
-
-      button.classList.add("active");
-      state.settings[setting] = value;
-
-      updateConditionalControls();
-    });
-  });
-
-  [
-    ["targetCashByRound", "targetCashByRound", "string"],
-    ["startingCash", "startingCash", "number"],
-    ["startingLives", "startingLives", "number"],
-    ["selectedHero", "selectedHero", "string"],
-    ["maxTowers", "maxTowers", "number"],
-    ["maxBananaFarms", "maxBananaFarms", "number"],
-    ["maxBoatSpots", "maxBoatSpots", "number"]
-  ].forEach(([elementKey, settingKey, type]) => {
-    el[elementKey].addEventListener("input", event => {
-      const rawValue = event.target.value;
-      state.settings[settingKey] = type === "number" ? Number(rawValue) : rawValue;
-      renderRoundTable();
-      renderCumulative();
-    });
-  });
-
-  el.monkeyKnowledge.addEventListener("change", event => {
-    state.settings.monkeyKnowledge = event.target.checked;
-  });
-
-  el.endRoundInput.addEventListener("input", event => {
-    const value = clamp(Number(event.target.value || 1), 1, MAX_ROUND);
-    state.endRound = value;
-  });
-
-  el.buildRoundsButton.addEventListener("click", () => {
-    state.endRound = clamp(Number(el.endRoundInput.value || 1), 1, MAX_ROUND);
-    renderRoundTable();
-    renderCumulative();
-  });
-
-  el.calculateButton.addEventListener("click", runCalculator);
-
-  el.clearSelectionButton.addEventListener("click", () => {
-    state.selectedEventId = null;
-    renderInspector();
-    renderRoundTable();
-  });
-}
-
-function bindTabs() {
-  document.querySelectorAll("[data-center-tab]").forEach(button => {
-    button.addEventListener("click", () => {
-      setTab("center", button.dataset.centerTab);
-    });
-  });
-
-  document.querySelectorAll("[data-right-tab]").forEach(button => {
-    button.addEventListener("click", () => {
-      setTab("right", button.dataset.rightTab);
-    });
-  });
-}
-
-function setTab(side, tabName) {
-  const buttonSelector = side === "center" ? "[data-center-tab]" : "[data-right-tab]";
-  const pageIds = side === "center"
-    ? ["editorTab", "cumulativeTab"]
-    : ["availableTab", "existingTab", "availabilityTab"];
-
-  document.querySelectorAll(buttonSelector).forEach(button => {
-    const isActive =
-      (side === "center" && button.dataset.centerTab === tabName) ||
-      (side === "right" && button.dataset.rightTab === tabName);
-
-    button.classList.toggle("active", isActive);
-  });
-
-  pageIds.forEach(id => {
-    const page = document.getElementById(id);
-    page.classList.toggle("active", id === `${tabName}Tab`);
-  });
-
-  if (tabName === "cumulative") {
-    renderCumulative();
-  }
-}
-
-function updateConditionalControls() {
-  const isCashOrTiers =
-    state.settings.mode === "Least Cash" ||
-    state.settings.mode === "Least Tiers";
-
-  el.targetCashSubsection.classList.toggle("hidden", !isCashOrTiers);
-}
-
-function renderAll() {
-  updateConditionalControls();
-  renderAvailableTowers();
-  renderExistingTowers();
-  renderAvailabilityRules();
-  renderRoundTable();
-  renderCumulative();
-  renderInspector();
-}
-
-function renderAvailableTowers() {
-  el.availableTowerList.innerHTML = "";
-
-  window.BTD6_TOWERS.forEach(tower => {
-    const disabled = !tower.enabled;
-
-    const card = document.createElement("div");
-    card.className = `tower-card ${disabled ? "disabled" : ""}`;
-    card.draggable = !disabled;
-    card.dataset.dragType = "new-tower";
-    card.dataset.towerId = tower.id;
-
-    card.innerHTML = `
-      <div class="card-title">
-        ${iconHtml(tower.iconKey)}
-        <span>${tower.name}</span>
-      </div>
-      <div class="card-meta">
-        Base cost: ${formatMoney(tower.baseCost)} · ${tower.category}
-      </div>
-      <div class="path-row">
-        <span class="path-pill ${tower.paths.top ? "on" : ""}">Top</span>
-        <span class="path-pill ${tower.paths.middle ? "on" : ""}">Mid</span>
-        <span class="path-pill ${tower.paths.bottom ? "on" : ""}">Bot</span>
-      </div>
-    `;
-
-    card.addEventListener("dragstart", event => {
-      if (disabled) {
-        event.preventDefault();
-        return;
-      }
-
-      event.dataTransfer.setData("text/plain", JSON.stringify({
-        type: "new-tower",
-        towerId: tower.id
-      }));
-    });
-
-    el.availableTowerList.appendChild(card);
-  });
-}
-
-function renderExistingTowers() {
-  el.existingTowerList.innerHTML = "";
-
-  const instances = Object.values(state.monkeyInstances);
-
-  if (instances.length === 0) {
-    el.existingTowerList.innerHTML = `<div class="empty-inspector">No placed monkeys yet.</div>`;
-    return;
-  }
-
-  instances.forEach(instance => {
-    const tower = getTower(instance.towerId);
-    const current = getMonkeyStateAtRound(instance.id, state.endRound);
-    const disabled = current.sold || isUpgradeMaxed(current.upgrade, tower);
-
-    const card = document.createElement("div");
-    card.className = `existing-card ${disabled ? "disabled" : ""}`;
-    card.draggable = !disabled;
-    card.dataset.dragType = "existing-monkey";
-    card.dataset.monkeyId = instance.id;
-
-    card.innerHTML = `
-      <div class="card-title">
-        ${iconHtml(tower.iconKey)}
-        <span>${instance.label}</span>
-      </div>
-      <div class="card-meta">
-        Current: ${current.sold ? "Sold" : current.upgrade}
-        ${disabled && !current.sold ? "· Maxed" : ""}
-      </div>
-    `;
-
-    card.addEventListener("dragstart", event => {
-      if (disabled) {
-        event.preventDefault();
-        return;
-      }
-
-      event.dataTransfer.setData("text/plain", JSON.stringify({
-        type: "existing-monkey",
-        monkeyId: instance.id
-      }));
-    });
-
-    el.existingTowerList.appendChild(card);
-  });
-}
-
-function renderAvailabilityRules() {
-  el.availabilityList.innerHTML = "";
-
-  window.BTD6_TOWERS.forEach(tower => {
-    const card = document.createElement("div");
-    card.className = "availability-card";
-
-    card.innerHTML = `
-      <label>
-        <input type="checkbox" data-rule="tower" data-tower-id="${tower.id}" ${tower.enabled ? "checked" : ""}>
-        <strong>${tower.name}</strong>
-      </label>
-
-      <div class="path-row">
-        <label>
-          <input type="checkbox" data-rule="path" data-tower-id="${tower.id}" data-path="top" ${tower.paths.top ? "checked" : ""}>
-          Top
-        </label>
-
-        <label>
-          <input type="checkbox" data-rule="path" data-tower-id="${tower.id}" data-path="middle" ${tower.paths.middle ? "checked" : ""}>
-          Mid
-        </label>
-
-        <label>
-          <input type="checkbox" data-rule="path" data-tower-id="${tower.id}" data-path="bottom" ${tower.paths.bottom ? "checked" : ""}>
-          Bot
-        </label>
-      </div>
-    `;
-
-    card.querySelectorAll("input").forEach(input => {
-      input.addEventListener("change", event => {
-        const rule = event.target.dataset.rule;
-        const towerId = event.target.dataset.towerId;
-        const targetTower = getTower(towerId);
-
-        if (rule === "tower") {
-          targetTower.enabled = event.target.checked;
-        }
-
-        if (rule === "path") {
-          const path = event.target.dataset.path;
-          targetTower.paths[path] = event.target.checked;
-        }
-
-        renderAvailableTowers();
-        renderExistingTowers();
-      });
-    });
-
-    el.availabilityList.appendChild(card);
-  });
-}
-
-function renderRoundTable() {
-  const rows = calculateRows();
-  el.roundTableBody.innerHTML = "";
-
-  rows.forEach(row => {
-    const tr = document.createElement("tr");
-    tr.className = `round-row ${row.conflict ? "conflict" : "ok"}`;
-    tr.dataset.round = row.round;
-
-    tr.innerHTML = `
-      <td><strong>${row.round}</strong></td>
-      <td class="money-cell">${formatMoney(row.startMoney)}</td>
-      <td class="money-cell">${formatMoney(row.income)}</td>
-      <td class="money-cell">${formatMoney(row.endMoney)}</td>
-      <td>
-        <div class="round-actions" data-drop-round="${row.round}">
-          ${renderEventChipsForRound(row.round)}
-        </div>
-      </td>
-    `;
-
-    bindDropHandlers(tr, row.round);
-    el.roundTableBody.appendChild(tr);
-  });
-}
-
-function renderEventChipsForRound(round) {
-  const events = state.events
-    .filter(event => event.round === round)
-    .sort((a, b) => a.sortOrder - b.sortOrder);
-
-  if (events.length === 0) {
-    return `<span class="empty-drop-zone">Drop monkey here</span>`;
-  }
-
-  return events.map(event => eventChipHtml(event)).join("");
-}
-
-function eventChipHtml(event) {
-  const instance = state.monkeyInstances[event.monkeyId];
-  const tower = getTower(event.towerId);
-  const selected = event.id === state.selectedEventId ? "selected" : "";
-  const generated = event.source === "generated" ? "generated" : "";
-  const sell = event.type === "sell" ? "sell" : "";
-
-  let label = "";
-
-  if (event.type === "place") {
-    label = `Place ${instance.label}`;
-  } else if (event.type === "upgrade") {
-    label = `${instance.label} → <span class="upgrade-code">${event.upgrade}</span>`;
-  } else if (event.type === "sell") {
-    label = `Sell ${instance.label}`;
-  }
-
-  return `
-    <button
-      class="action-chip ${selected} ${generated} ${sell}"
-      data-event-id="${event.id}"
-      onclick="selectEvent('${event.id}')"
-      title="${event.type} ${instance.label}"
-    >
-      ${iconHtml(tower.iconKey)}
-      <span class="chip-title">${label}</span>
-    </button>
-  `;
-}
-
-function bindDropHandlers(rowElement, round) {
-  rowElement.addEventListener("dragover", event => {
-    event.preventDefault();
-    rowElement.classList.add("drop-hover");
-  });
-
-  rowElement.addEventListener("dragleave", () => {
-    rowElement.classList.remove("drop-hover");
-  });
-
-  rowElement.addEventListener("drop", event => {
-    event.preventDefault();
-    rowElement.classList.remove("drop-hover");
-
-    const raw = event.dataTransfer.getData("text/plain");
-    if (!raw) return;
-
-    const payload = JSON.parse(raw);
-
-    if (payload.type === "new-tower") {
-      placeNewTower(payload.towerId, round);
-      return;
-    }
-
-    if (payload.type === "existing-monkey") {
-      addNextUpgrade(payload.monkeyId, round);
-    }
-  });
-}
-
-function placeNewTower(towerId, round) {
-  const tower = getTower(towerId);
-
-  if (!tower.enabled) {
-    showToast("That tower is disabled in availability rules.");
-    return;
-  }
-
-  if (wouldBreakTowerLimits(towerId)) {
-    showToast("Tower limit would be exceeded.");
-    return;
-  }
-
-  const monkeyId = makeId("monkey", state.nextMonkeyNumber++);
-  const label = makeMonkeyLabel(tower);
-
-  state.monkeyInstances[monkeyId] = {
-    id: monkeyId,
-    towerId,
-    label
-  };
-
-  incrementTowerCount(towerId);
-
-  state.events.push({
-    id: makeId("event", state.nextEventNumber++),
-    monkeyId,
-    towerId,
-    round,
-    type: "place",
-    upgrade: "000",
-    source: "manual",
-    sortOrder: Date.now()
-  });
-
-  renderAll();
-}
-
-function addNextUpgrade(monkeyId, round) {
-  const instance = state.monkeyInstances[monkeyId];
-
-  if (!instance) {
-    showToast("Could not find that monkey.");
-    return;
-  }
-
-  const tower = getTower(instance.towerId);
-  const current = getMonkeyStateAtRound(monkeyId, round);
-
-  if (current.sold) {
-    showToast("This monkey was already sold before this round.");
-    return;
-  }
-
-  const nextUpgrade = getNextAvailableUpgrade(current.upgrade, tower);
-
-  if (!nextUpgrade) {
-    showToast("No legal auto-upgrade is available.");
-    return;
-  }
-
-  state.events.push({
-    id: makeId("event", state.nextEventNumber++),
-    monkeyId,
-    towerId: instance.towerId,
-    round,
-    type: "upgrade",
-    upgrade: nextUpgrade,
-    source: "manual",
-    sortOrder: Date.now()
-  });
-
-  renderAll();
-}
-
-function wouldBreakTowerLimits(towerId) {
-  const totalTowers = Object.keys(state.monkeyInstances).length;
-  const tower = getTower(towerId);
-
-  if (totalTowers >= state.settings.maxTowers) {
-    return true;
-  }
-
-  if (
-    tower.id === "banana-farm" &&
-    countExistingTower("banana-farm") >= state.settings.maxBananaFarms
-  ) {
-    return true;
-  }
-
-  return false;
-}
-
-function makeMonkeyLabel(tower) {
-  const currentCount = countExistingTower(tower.id) + 1;
-  return `${tower.shortName || tower.name} #${currentCount}`;
-}
-
-function incrementTowerCount(towerId) {
-  state.towerCounts[towerId] = (state.towerCounts[towerId] || 0) + 1;
-}
-
-function countExistingTower(towerId) {
-  return Object.values(state.monkeyInstances)
-    .filter(instance => instance.towerId === towerId)
-    .length;
-}
-
-function getNextAvailableUpgrade(currentUpgrade, tower) {
-  const paths = ["top", "middle", "bottom"];
-
-  for (const path of paths) {
-    if (!tower.paths[path]) continue;
-
-    const next = addOneTier(currentUpgrade, path);
-
-    if (next && isUpgradePatternAllowed(next)) {
-      return next;
-    }
-  }
-
-  return null;
-}
-
-function addOneTier(upgrade, path) {
-  const digits = upgrade.split("").map(Number);
-  const index = path === "top" ? 0 : path === "middle" ? 1 : 2;
-
-  if (digits[index] >= 5) {
-    return null;
-  }
-
-  digits[index] += 1;
-  return digits.join("");
-}
-
-/*
-  Simple BTD6-style path legality:
-  - One main path can go past tier 2.
-  - Only one other crosspath can go up to tier 2.
-  - The third path must stay 0 if a path is tier 3+.
-  You can loosen/tighten this later.
-*/
-function isUpgradePatternAllowed(upgrade) {
-  const digits = upgrade.split("").map(Number);
-  const pathsAboveTwo = digits.filter(value => value > 2).length;
-  const nonZeroPaths = digits.filter(value => value > 0).length;
-
-  if (pathsAboveTwo > 1) return false;
-  if (pathsAboveTwo === 1 && nonZeroPaths > 2) return false;
-  if (digits.some(value => value > 5)) return false;
-
-  return true;
-}
-
-function isUpgradeMaxed(upgrade, tower) {
-  return getNextAvailableUpgrade(upgrade, tower) === null;
-}
-
-function getMonkeyStateAtRound(monkeyId, round) {
-  const relatedEvents = state.events
-    .filter(event => event.monkeyId === monkeyId && event.round <= round)
-    .sort((a, b) => {
-      if (a.round !== b.round) return a.round - b.round;
-      return a.sortOrder - b.sortOrder;
-    });
-
-  let upgrade = "000";
-  let sold = false;
-
-  relatedEvents.forEach(event => {
-    if (event.type === "place") {
-      upgrade = event.upgrade || "000";
-      sold = false;
-    }
-
-    if (event.type === "upgrade") {
-      upgrade = event.upgrade;
-    }
-
-    if (event.type === "sell") {
-      sold = true;
-    }
-  });
-
-  return { upgrade, sold };
-}
-
-function calculateRows() {
-  const rows = [];
-  let money = Number(state.settings.startingCash || 0);
-
-  for (let round = 1; round <= state.endRound; round++) {
-    const startMoney = money;
-
-    const roundEvents = state.events
-      .filter(event => event.round === round)
-      .sort((a, b) => a.sortOrder - b.sortOrder);
-
-    let moneyAfterActions = startMoney;
-    let conflict = false;
-
-    roundEvents.forEach(event => {
-      const delta = getMoneyDeltaForEvent(event, round);
-
-      moneyAfterActions += delta;
-
-      if (moneyAfterActions < 0) {
-        conflict = true;
-      }
-    });
-
-    const baseRoundIncome = Number(window.BTD6_ROUND_INCOME?.[round] || 0);
-    const towerIncome = calculateTowerIncomeForRound(round);
-    const income = baseRoundIncome + towerIncome;
-
-    const endMoney = moneyAfterActions + income;
-
-    if (endMoney < 0) {
-      conflict = true;
-    }
-
-    rows.push({
-      round,
-      startMoney,
-      income,
-      endMoney,
-      conflict
-    });
-
-    money = endMoney;
-  }
-
-  return rows;
-}
-
-function getMoneyDeltaForEvent(event, round) {
-  const tower = getTower(event.towerId);
-
-  if (event.type === "place") {
-    return -Number(tower.baseCost || 0);
-  }
-
-  if (event.type === "upgrade") {
-    const cost = Number(tower.upgradeCosts?.[event.upgrade] || 0);
-    return -cost;
-  }
-
-  if (event.type === "sell") {
-    return calculateSellValue(event.monkeyId, round);
-  }
-
-  return 0;
-}
-
-function calculateSellValue(monkeyId, round) {
-  const instance = state.monkeyInstances[monkeyId];
-  if (!instance) return 0;
-
-  const tower = getTower(instance.towerId);
-  const stateBeforeSell = getMonkeyStateAtRound(monkeyId, round - 0.001);
-  const totalSpent = calculateTotalSpentOnMonkeyUntilRound(monkeyId, round);
-  return Math.floor(totalSpent * Number(tower.sellbackRate || 0.70));
-}
-
-function calculateTotalSpentOnMonkeyUntilRound(monkeyId, round) {
-  return state.events
-    .filter(event => event.monkeyId === monkeyId && event.round <= round && event.type !== "sell")
-    .reduce((sum, event) => {
-      const tower = getTower(event.towerId);
-
-      if (event.type === "place") {
-        return sum + Number(tower.baseCost || 0);
-      }
-
-      if (event.type === "upgrade") {
-        return sum + Number(tower.upgradeCosts?.[event.upgrade] || 0);
-      }
-
-      return sum;
-    }, 0);
-}
-
-/*
-  THIS IS WHERE YOUR FARMING MATH GOES.
-
-  Right now it returns 0 because this is only the UI/planning framework.
-
-  Later, you can:
-  - Look at every monkey alive by this round.
-  - Check its current upgrade.
-  - Add marketplace income, bank interest, boat farming, village effects, etc.
-  - Return the total income generated this round.
-*/
-function calculateTowerIncomeForRound(round) {
-  return 0;
-}
-
-/*
-  THIS IS WHERE YOUR OPTIMIZER GOES.
-
-  The Calculate button will:
-  1. Remove old generated/purple actions.
-  2. Keep user locked/grey actions.
-  3. Call this function.
-  4. Add whatever actions you return as generated/purple actions.
-
-  Return format example:
-  [
-    { round: 3, towerId: "banana-farm", type: "place", upgrade: "000" },
-    { round: 7, monkeyLabelHint: "Farm #1", type: "upgrade", upgrade: "100" }
-  ]
-
-  For now it returns [] so nothing is auto-added.
-*/
-function generateOptimalPlan() {
-  return [];
-}
-
-function runCalculator() {
-  state.events = state.events.filter(event => event.source !== "generated");
-
-  const generated = generateOptimalPlan();
-
-  generated.forEach(action => {
-    // This is intentionally minimal. Once your math is ready,
-    // you can expand this converter to create generated monkey events.
-    console.log("Generated action placeholder:", action);
-  });
-
-  renderAll();
-  showToast("Calculated current locked plan. Optimizer hook is ready in app.js.");
-}
-
-function renderCumulative() {
-  el.cumulativeList.innerHTML = "";
-
-  for (let round = 1; round <= state.endRound; round++) {
-    const alive = Object.values(state.monkeyInstances)
-      .map(instance => {
-        const current = getMonkeyStateAtRound(instance.id, round);
-
-        if (current.sold) return null;
-
-        const tower = getTower(instance.towerId);
-
-        return {
-          label: instance.label,
-          iconKey: tower.iconKey,
-          upgrade: current.upgrade
-        };
-      })
-      .filter(Boolean);
-
-    const card = document.createElement("div");
-    card.className = "cumulative-round";
-
-    card.innerHTML = `
-      <h3>Round ${round}</h3>
-      <div class="cumulative-pill-list">
-        ${
-          alive.length
-            ? alive.map(item => `
-                <span class="action-chip generated">
-                  ${iconHtml(item.iconKey)}
-                  <span>${item.label}</span>
-                  <span class="upgrade-code">${item.upgrade}</span>
-                </span>
-              `).join("")
-            : `<span class="empty-inspector">No towers exist yet.</span>`
-        }
-      </div>
-    `;
-
-    el.cumulativeList.appendChild(card);
-  }
-}
-
-window.selectEvent = function selectEvent(eventId) {
-  state.selectedEventId = eventId;
-  renderInspector();
-  renderRoundTable();
-};
-
-function renderInspector() {
-  const event = state.events.find(item => item.id === state.selectedEventId);
-
-  if (!event) {
-    el.inspectorContent.className = "empty-inspector";
-    el.inspectorContent.innerHTML = "Click a monkey/action in the Round Map.";
-    return;
-  }
-
-  const instance = state.monkeyInstances[event.monkeyId];
-  const tower = getTower(event.towerId);
-
-  el.inspectorContent.className = "inspector-grid";
-  el.inspectorContent.innerHTML = `
-    <div class="inspector-title">
-      ${iconHtml(tower.iconKey)}
-      ${instance.label}
-    </div>
-
-    <div class="card-meta">
-      Round ${event.round} · ${event.type.toUpperCase()} · ${event.source === "generated" ? "Calculator generated" : "User locked"}
-    </div>
-
-    <label class="input-label">
-      Upgrade code for this action
-      <input id="selectedUpgradeInput" type="text" value="${event.upgrade || "000"}" maxlength="3" ${event.type === "sell" ? "disabled" : ""}>
-    </label>
-
-    <div class="inspector-actions">
-      <button onclick="bumpSelectedUpgrade('top')">+Top</button>
-      <button onclick="bumpSelectedUpgrade('middle')">+Mid</button>
-      <button onclick="bumpSelectedUpgrade('bottom')">+Bot</button>
-      <button class="good" onclick="turnSelectedIntoSell()">Sell Here</button>
-      <button class="danger" onclick="deleteSelectedEvent()">Delete Action</button>
-    </div>
-
-    <div class="card-meta">
-      Deleting a 000 placement removes the whole monkey. Deleting an upgrade only removes that upgrade,
-      so later upgrades can become jumps like 000 → 002.
-    </div>
-  `;
-
-  const input = document.getElementById("selectedUpgradeInput");
-  input.addEventListener("change", eventInput => {
-    const next = eventInput.target.value.trim();
-
-    if (!/^[0-5]{3}$/.test(next) || !isUpgradePatternAllowed(next)) {
-      showToast("Invalid upgrade code.");
-      eventInput.target.value = event.upgrade || "000";
-      return;
-    }
-
-    event.upgrade = next;
-    if (event.type === "place" && next !== "000") {
-      event.type = "upgrade";
-    }
-
-    renderAll();
-  });
-}
-
-window.bumpSelectedUpgrade = function bumpSelectedUpgrade(path) {
-  const event = state.events.find(item => item.id === state.selectedEventId);
-  if (!event || event.type === "sell") return;
-
-  const current = event.upgrade || "000";
-  const next = addOneTier(current, path);
-
-  if (!next || !isUpgradePatternAllowed(next)) {
-    showToast("That upgrade would break the crosspath rules.");
-    return;
-  }
-
-  event.upgrade = next;
-  if (event.type === "place" && next !== "000") {
-    event.type = "upgrade";
-  }
-
-  renderAll();
-};
-
-window.turnSelectedIntoSell = function turnSelectedIntoSell() {
-  const event = state.events.find(item => item.id === state.selectedEventId);
-  if (!event) return;
-
-  event.type = "sell";
-  event.upgrade = "";
-  renderAll();
-};
-
-window.deleteSelectedEvent = function deleteSelectedEvent() {
-  const event = state.events.find(item => item.id === state.selectedEventId);
-  if (!event) return;
-
-  if (event.type === "place" && event.upgrade === "000") {
-    state.events = state.events.filter(item => item.monkeyId !== event.monkeyId);
-    delete state.monkeyInstances[event.monkeyId];
-  } else {
-    state.events = state.events.filter(item => item.id !== event.id);
-  }
-
-  state.selectedEventId = null;
-  renderAll();
-};
-
-function getTower(towerId) {
-  return window.BTD6_TOWERS.find(tower => tower.id === towerId);
-}
-
-function makeId(prefix, number) {
-  return `${prefix}-${number}`;
-}
-
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function formatMoney(value) {
-  const rounded = Math.round(Number(value || 0));
-  return `$${rounded.toLocaleString()}`;
-}
-
-function showToast(message) {
-  el.toast.textContent = message;
-  el.toast.classList.remove("hidden");
-
-  window.clearTimeout(showToast.timeout);
-  showToast.timeout = window.setTimeout(() => {
-    el.toast.classList.add("hidden");
-  }, 2200);
-}
-
+function bindTabs(){document.querySelectorAll("[data-center-tab]").forEach(button=>{button.addEventListener("click",()=>setTab("center",button.dataset.centerTab));});document.querySelectorAll("[data-right-tab]").forEach(button=>{button.addEventListener("click",()=>setTab("right",button.dataset.rightTab));});}
+function setTab(side,tabName){const buttonSelector=side==="center"?"[data-center-tab]":"[data-right-tab]";const pageIds=side==="center"?["editorTab","cumulativeTab"]:["availableTab","existingTab","availabilityTab"];document.querySelectorAll(buttonSelector).forEach(button=>{const isActive=(side==="center"&&button.dataset.centerTab===tabName)||(side==="right"&&button.dataset.rightTab===tabName);button.classList.toggle("active",isActive);});pageIds.forEach(id=>document.getElementById(id).classList.toggle("active",id===`${tabName}Tab`));if(tabName==="cumulative")renderCumulative();if(tabName==="existing")renderExistingTowers();}
+function updateConditionalControls(){const isCashOrTiers=state.settings.mode==="Least Cash"||state.settings.mode==="Least Tiers";el.targetCashSubsection.classList.toggle("hidden",!isCashOrTiers);}
+function renderAll(){updateConditionalControls();renderAvailableTowers();renderExistingTowers();renderAvailabilityRules();renderRoundTable();renderCumulative();renderInspector();}
+
+function renderAvailableTowers(){el.availableTowerList.innerHTML="";window.BTD6_TOWERS.forEach(tower=>{const disabled=!tower.enabled||!hasAnyAvailablePath(tower);const card=document.createElement("div");card.className=`available-tower ${disabled?"disabled":""}`;card.draggable=!disabled;card.title=tower.name;card.dataset.dragType="new-tower";card.dataset.towerId=tower.id;card.innerHTML=`<div class="available-icon">${iconHtml(tower.iconKey)}</div><div class="available-price">${formatMoney(tower.baseCost)}</div>`;card.addEventListener("dragstart",event=>{if(disabled){event.preventDefault();return;}event.dataTransfer.setData("text/plain",JSON.stringify({type:"new-tower",towerId:tower.id}));});el.availableTowerList.appendChild(card);});}
+function renderExistingTowers(){el.existingTowerList.innerHTML="";const instances=Object.values(state.monkeyInstances);if(instances.length===0){el.existingTowerList.innerHTML=`<div class="empty-inspector">No placed monkeys yet.</div>`;return;}instances.forEach(instance=>{const tower=getTower(instance.towerId);const current=getMonkeyStateAtRound(instance.id,state.endRound);const disabled=current.sold||isUpgradeMaxed(current.upgrade,tower);const card=document.createElement("div");card.className=`existing-card ${disabled?"disabled":""}`;card.draggable=!disabled;card.dataset.dragType="existing-monkey";card.dataset.monkeyId=instance.id;card.innerHTML=`<div class="card-title">${iconHtml(tower.iconKey)}<span>${instance.label}</span></div><div class="card-meta">Current at end round: ${current.sold?"Sold":current.upgrade}${disabled&&!current.sold?" · Maxed for allowed paths":""}</div>`;card.addEventListener("dragstart",event=>{if(disabled){event.preventDefault();return;}event.dataTransfer.setData("text/plain",JSON.stringify({type:"existing-monkey",monkeyId:instance.id}));});el.existingTowerList.appendChild(card);});}
+function renderAvailabilityRules(){el.availabilityList.innerHTML="";window.BTD6_TOWERS.forEach(tower=>{const card=document.createElement("div");card.className="availability-card";card.innerHTML=`<div class="availability-icon">${iconHtml(tower.iconKey)}</div><div class="availability-main"><div class="availability-name-row"><span>${tower.name}</span><label class="mini-check"><input type="checkbox" data-rule="tower" data-tower-id="${tower.id}" ${tower.enabled?"checked":""}>Enabled</label></div><div class="tier-stack">${tierControlHtml("availability",tower.id,"top",tower.maxPathTiers.top)}${tierControlHtml("availability",tower.id,"middle",tower.maxPathTiers.middle)}${tierControlHtml("availability",tower.id,"bottom",tower.maxPathTiers.bottom)}</div></div>`;card.querySelectorAll("[data-rule='tower']").forEach(input=>{input.addEventListener("change",event=>{getTower(event.target.dataset.towerId).enabled=event.target.checked;renderAvailableTowers();renderExistingTowers();});});el.availabilityList.appendChild(card);});}
+function tierControlHtml(kind,id,path,value){return `<div class="tier-control"><span class="tier-label">${PATH_LABELS[path]}</span><button class="step-btn" onclick="changeTierValue('${kind}', '${id}', '${path}', -1)">−</button><span class="tier-value">${value}</span><button class="step-btn" onclick="changeTierValue('${kind}', '${id}', '${path}', 1)">+</button></div>`;}
+window.changeTierValue=function(kind,id,path,delta){if(kind==="availability"){const tower=getTower(id);tower.maxPathTiers[path]=clamp(tower.maxPathTiers[path]+delta,0,5);renderAvailabilityRules();renderAvailableTowers();renderExistingTowers();renderRoundTable();renderInspector();return;}if(kind==="selected"){const event=state.events.find(item=>item.id===id);if(!event||event.type!=="upgrade")return;const tower=getTower(event.towerId);const next=changeUpgradeTier(event.upgrade||"000",path,delta);if(!next){showToast("That upgrade would be outside 0-5.");return;}if(!isUpgradePatternAllowed(next,tower)){showToast("That upgrade breaks crosspath or availability rules.");return;}event.upgrade=next;renderAll();}};
+
+function renderRoundTable(){const rows=calculateRows();el.roundTableBody.innerHTML="";for(let round=state.settings.roundStart;round<=state.endRound;round++){const row=rows.find(item=>item.round===round);if(!row)continue;const tr=document.createElement("tr");tr.className=`round-row ${row.conflict?"conflict":"ok"}`;tr.dataset.round=row.round;tr.innerHTML=`<td><strong>${row.round}</strong></td><td class="money-cell">${formatMoney(row.startMoney)}</td><td class="money-cell">${formatMoney(row.income)}</td><td class="money-cell">${formatMoney(row.endMoney)}</td><td><div class="round-actions" data-drop-round="${row.round}">${renderEventChipsForRound(row.round)}</div></td>`;bindDropHandlers(tr,row.round);el.roundTableBody.appendChild(tr);}}
+function renderEventChipsForRound(round){const events=state.events.filter(event=>event.round===round).sort(compareEventsByTick);if(events.length===0)return `<span class="empty-drop-zone">Drop monkey here</span>`;return events.map(event=>eventChipHtml(event)).join("");}
+function eventChipHtml(event){const instance=state.monkeyInstances[event.monkeyId];const tower=getTower(event.towerId);if(!instance||!tower)return "";const selected=event.id===state.selectedEventId?"selected":"";const generated=event.source==="generated"?"generated":"";const sell=event.type==="sell"?"sell":"";let label="";if(event.type==="place")label=`Place ${instance.label}`;else if(event.type==="upgrade")label=`${instance.label} → <span class="upgrade-code">${event.upgrade}</span>`;else if(event.type==="sell")label=`Sell ${instance.label}`;const tick=getEventDisplayTick(event);return `<button class="action-chip ${selected} ${generated} ${sell}" data-event-id="${event.id}" onclick="selectEvent('${event.id}')" title="${event.type} ${instance.label}">${iconHtml(tower.iconKey)}<span class="chip-title">${label}</span><span class="tick-badge">@${tick}</span></button>`;}
+function bindDropHandlers(rowElement,round){rowElement.addEventListener("dragover",event=>{event.preventDefault();rowElement.classList.add("drop-hover");});rowElement.addEventListener("dragleave",()=>rowElement.classList.remove("drop-hover"));rowElement.addEventListener("drop",event=>{event.preventDefault();rowElement.classList.remove("drop-hover");const raw=event.dataTransfer.getData("text/plain");if(!raw)return;const payload=JSON.parse(raw);if(payload.type==="new-tower"){placeNewTower(payload.towerId,round);return;}if(payload.type==="existing-monkey")addNextUpgrade(payload.monkeyId,round);});}
+
+function placeNewTower(towerId,round){const tower=getTower(towerId);if(!tower.enabled||!hasAnyAvailablePath(tower)){showToast("That tower is disabled in availability rules.");return;}if(wouldBreakTowerLimits(towerId)){showToast("Tower limit would be exceeded.");return;}const monkeyId=makeId("monkey",state.nextMonkeyNumber++);const label=makeMonkeyLabel(tower);state.monkeyInstances[monkeyId]={id:monkeyId,towerId,label};state.events.push({id:makeId("event",state.nextEventNumber++),monkeyId,towerId,round,type:"place",upgrade:"000",source:"manual",tick:0,computedTick:0,sortOrder:Date.now()});renderAll();}
+function addNextUpgrade(monkeyId,round){const instance=state.monkeyInstances[monkeyId];if(!instance){showToast("Could not find that monkey.");return;}const tower=getTower(instance.towerId);const current=getMonkeyStateAtRound(monkeyId,round);if(current.sold){showToast("This monkey was sold before or during that round.");return;}const nextUpgrade=getNextAvailableUpgrade(current.upgrade,tower);if(!nextUpgrade){showToast("No legal auto-upgrade is available.");return;}state.events.push({id:makeId("event",state.nextEventNumber++),monkeyId,towerId:instance.towerId,round,type:"upgrade",upgrade:nextUpgrade,source:"manual",tick:0,computedTick:0,sortOrder:Date.now()});renderAll();}
+function wouldBreakTowerLimits(towerId){const totalTowers=Object.keys(state.monkeyInstances).length;const tower=getTower(towerId);if(totalTowers>=state.settings.maxTowers)return true;if(tower.id==="banana-farm"&&countExistingTower("banana-farm")>=state.settings.maxBananaFarms)return true;return false;}
+function makeMonkeyLabel(tower){const currentCount=countExistingTower(tower.id)+1;return `${tower.shortName||tower.name} #${currentCount}`;}
+function countExistingTower(towerId){return Object.values(state.monkeyInstances).filter(instance=>instance.towerId===towerId).length;}
+function getNextAvailableUpgrade(currentUpgrade,tower){for(const path of PATH_KEYS){const next=addOneTier(currentUpgrade,path);if(next&&isUpgradePatternAllowed(next,tower))return next;}return null;}
+function addOneTier(upgrade,path){const digits=upgrade.split("").map(Number);const index=PATH_INDEX[path];if(digits[index]>=5)return null;digits[index]+=1;return digits.join("");}
+function changeUpgradeTier(upgrade,path,delta){const digits=upgrade.split("").map(Number);const index=PATH_INDEX[path];digits[index]+=delta;if(digits[index]<0||digits[index]>5)return null;return digits.join("");}
+function isUpgradePatternAllowed(upgrade,tower){const digits=upgrade.split("").map(Number);if(digits.some(value=>value<0||value>5))return false;if(tower){for(const path of PATH_KEYS){const index=PATH_INDEX[path];const max=tower.maxPathTiers[path]??5;if(digits[index]>max)return false;}}const pathsAboveTwo=digits.filter(value=>value>2).length;const nonZeroPaths=digits.filter(value=>value>0).length;if(pathsAboveTwo>1)return false;if(pathsAboveTwo===1&&nonZeroPaths>2)return false;return true;}
+function hasAnyAvailablePath(tower){return tower.enabled&&PATH_KEYS.some(path=>(tower.maxPathTiers[path]??0)>0);}
+function isUpgradeMaxed(upgrade,tower){return getNextAvailableUpgrade(upgrade,tower)===null;}
+function getMonkeyStateAtRound(monkeyId,round){const relatedEvents=state.events.filter(event=>event.monkeyId===monkeyId&&event.round<=round).sort((a,b)=>{if(a.round!==b.round)return a.round-b.round;return compareEventsByTick(a,b);});let placed=false;let upgrade="000";let sold=false;relatedEvents.forEach(event=>{if(event.type==="place"){placed=true;sold=false;upgrade="000";}if(event.type==="upgrade"&&placed&&!sold)upgrade=event.upgrade;if(event.type==="sell"&&placed)sold=true;});return {placed,upgrade,sold};}
+
+function calculateRows(){const rows=[];let money=Number(state.settings.startingCash||0);for(let round=state.settings.roundStart;round<=state.endRound;round++){const startMoney=money;const baseRoundIncome=Number(window.BTD6_ROUND_INCOME?.[round]||0);const towerIncome=calculateTowerIncomeForRound(round);const income=baseRoundIncome+towerIncome;const incomePerTick=income/TICKS_PER_ROUND;const rowEvents=state.events.filter(event=>event.round===round).sort((a,b)=>a.sortOrder-b.sortOrder);let currentMoney=startMoney;let lastTick=0;let conflict=false;rowEvents.forEach(event=>{const delta=getMoneyDeltaForEvent(event,round);if(delta<0){const cost=-delta;const needed=cost-currentMoney;if(needed<=0){event.computedTick=lastTick;currentMoney-=cost;return;}if(incomePerTick<=0){event.computedTick=0;currentMoney-=cost;conflict=true;return;}const affordableTick=Math.ceil(lastTick+needed/incomePerTick);if(affordableTick>TICKS_PER_ROUND){event.computedTick=0;currentMoney-=cost;conflict=true;return;}currentMoney+=incomePerTick*(affordableTick-lastTick);lastTick=affordableTick;event.computedTick=affordableTick;currentMoney-=cost;return;}if(delta>=0){const sellTick=clamp(Number(event.tick??TICKS_PER_ROUND),0,TICKS_PER_ROUND);if(sellTick>lastTick){currentMoney+=incomePerTick*(sellTick-lastTick);lastTick=sellTick;}event.computedTick=sellTick;currentMoney+=delta;}});if(lastTick<TICKS_PER_ROUND)currentMoney+=incomePerTick*(TICKS_PER_ROUND-lastTick);const endMoney=currentMoney;if(endMoney<0)conflict=true;rows.push({round,startMoney,income,endMoney,conflict});money=endMoney;}return rows;}
+function getMoneyDeltaForEvent(event,round){const tower=getTower(event.towerId);if(event.type==="place")return -Number(tower.baseCost||0);if(event.type==="upgrade")return -Number(tower.upgradeCosts?.[event.upgrade]||0);if(event.type==="sell")return calculateSellValue(event.monkeyId,round);return 0;}
+function calculateSellValue(monkeyId,round){const instance=state.monkeyInstances[monkeyId];if(!instance)return 0;const tower=getTower(instance.towerId);const totalSpent=calculateTotalSpentOnMonkeyUntilRound(monkeyId,round);return Math.floor(totalSpent*Number(tower.sellbackRate||.70));}
+function calculateTotalSpentOnMonkeyUntilRound(monkeyId,round){return state.events.filter(event=>event.monkeyId===monkeyId&&event.round<=round&&event.type!=="sell").reduce((sum,event)=>{const tower=getTower(event.towerId);if(event.type==="place")return sum+Number(tower.baseCost||0);if(event.type==="upgrade")return sum+Number(tower.upgradeCosts?.[event.upgrade]||0);return sum;},0);}
+function calculateTowerIncomeForRound(round){return 0;}
+function generateOptimalPlan(){return [];}
+function runCalculator(){state.events=state.events.filter(event=>event.source!=="generated");const generated=generateOptimalPlan();generated.forEach(action=>console.log("Generated action placeholder:",action));renderAll();showToast("Calculated locked plan. Optimizer hook is ready in app.js.");}
+
+function renderCumulative(){el.cumulativeList.innerHTML="";for(let round=state.settings.roundStart;round<=state.endRound;round++){const alive=Object.values(state.monkeyInstances).map(instance=>{const current=getMonkeyStateAtRound(instance.id,round);if(!current.placed||current.sold)return null;const tower=getTower(instance.towerId);const buffs=getBuffsForMonkey(instance.id);return {label:instance.label,iconKey:tower.iconKey,upgrade:current.upgrade,buffCount:buffs.length};}).filter(Boolean);const card=document.createElement("div");card.className="cumulative-round";card.innerHTML=`<h3>Round ${round}</h3><div class="cumulative-pill-list">${alive.length?alive.map(item=>`<span class="action-chip generated">${iconHtml(item.iconKey)}<span>${item.label}</span><span class="upgrade-code">${item.upgrade}</span>${item.buffCount?`<span class="tick-badge">+${item.buffCount} buff</span>`:""}</span>`).join(""):`<span class="empty-inspector">No towers exist yet.</span>`}</div>`;el.cumulativeList.appendChild(card);}}
+window.selectEvent=function(eventId){state.selectedEventId=eventId;renderInspector();renderRoundTable();};
+function renderInspector(){const event=state.events.find(item=>item.id===state.selectedEventId);if(!event){el.inspectorContent.className="empty-inspector";el.inspectorContent.innerHTML="Click a monkey/action in the Round Map.";return;}if(state.inspectorTab==="mk"){renderMkBuffInspector(event);return;}renderActionInspector(event);}
+function renderActionInspector(event){const instance=state.monkeyInstances[event.monkeyId];const tower=getTower(event.towerId);const current=getMonkeyStateAtRound(event.monkeyId,event.round);const tick=getEventDisplayTick(event);const spent=calculateTotalSpentOnMonkeyUntilRound(event.monkeyId,event.round);const sellValue=calculateSellValue(event.monkeyId,event.round);const profit=0;el.inspectorContent.className="inspector-grid";const upgradeEditor=event.type==="upgrade"?`<div class="tier-stack">${tierControlHtml("selected",event.id,"top",Number(event.upgrade[0]))}${tierControlHtml("selected",event.id,"middle",Number(event.upgrade[1]))}${tierControlHtml("selected",event.id,"bottom",Number(event.upgrade[2]))}</div>`:`<div class="hint-box" style="margin:0;">${event.type==="place"?"This is the locked 000 placement. To upgrade it, drag this monkey from Existing into a later round.":"This is a sell action. It does not have crosspath tiers."}</div>`;el.inspectorContent.innerHTML=`<div class="inspector-title">${iconHtml(tower.iconKey)}${instance.label}</div><div class="card-meta">Round ${event.round} · ${event.type.toUpperCase()} · ${event.source==="generated"?"Calculator generated":"User locked"}</div><div class="stat-grid"><div class="stat-box"><div class="stat-label">Action Tick</div><div class="stat-value">${tick} / ${TICKS_PER_ROUND}</div></div><div class="stat-box"><div class="stat-label">Marketplace Tick Placed</div><div class="stat-value">${tick}</div></div><div class="stat-box"><div class="stat-label">Current Value</div><div class="stat-value">${formatMoney(spent)}</div></div><div class="stat-box"><div class="stat-label">Profit</div><div class="stat-value">${formatMoney(profit)}</div></div><div class="stat-box"><div class="stat-label">Sell Value</div><div class="stat-value">${formatMoney(sellValue)}</div></div><div class="stat-box"><div class="stat-label">Current Upgrade</div><div class="stat-value">${current.sold?"Sold":current.upgrade}</div></div></div>${upgradeEditor}<div class="inspector-actions"><button class="danger" onclick="deleteSelectedEvent()">Delete Action</button><button class="good" onclick="addSellActionFromSelected()">Sell Here</button></div>`;}
+function renderMkBuffInspector(event){const instance=state.monkeyInstances[event.monkeyId];const tower=getTower(event.towerId);const buffs=getBuffsForMonkey(event.monkeyId);el.inspectorContent.className="inspector-grid";el.inspectorContent.innerHTML=`<div class="inspector-title">${iconHtml(tower.iconKey)}MK Buffs for ${instance.label}</div><div class="card-meta">Drag an existing monkey into this box to record it as a buff source for this monkey. The math hook can later read <code>state.buffs</code>.</div><div id="buffDropZone" class="buff-drop-zone">Drop existing monkey here as buff source</div><div class="buff-list">${buffs.length?buffs.map(buff=>buffCardHtml(buff)).join(""):`<div class="empty-inspector">No buffs assigned yet.</div>`}</div>`;bindBuffDropZone(event);}
+function buffCardHtml(buff){const source=state.monkeyInstances[buff.sourceMonkeyId];const sourceTower=source?getTower(source.towerId):null;return `<div class="buff-card"><div class="card-title">${sourceTower?iconHtml(sourceTower.iconKey):""}<span>${source?source.label:"Missing source"}</span></div><div class="card-meta">Type: ${buff.type} · Multiplier: ${buff.multiplier} · Flat: ${formatMoney(buff.flatBonus)}</div><div class="inspector-actions" style="margin-top:8px;"><button class="danger" onclick="removeBuff('${buff.id}')">Remove Buff</button></div></div>`;}
+function bindBuffDropZone(targetEvent){const dropZone=document.getElementById("buffDropZone");if(!dropZone)return;dropZone.addEventListener("dragover",event=>{event.preventDefault();dropZone.classList.add("drop-hover");});dropZone.addEventListener("dragleave",()=>dropZone.classList.remove("drop-hover"));dropZone.addEventListener("drop",event=>{event.preventDefault();dropZone.classList.remove("drop-hover");const raw=event.dataTransfer.getData("text/plain");if(!raw)return;const payload=JSON.parse(raw);if(payload.type!=="existing-monkey"){showToast("Drop an existing monkey here.");return;}addBuff(targetEvent.monkeyId,payload.monkeyId);});}
+function addBuff(targetMonkeyId,sourceMonkeyId){if(targetMonkeyId===sourceMonkeyId){showToast("A monkey cannot buff itself in this framework.");return;}const alreadyExists=state.buffs.some(buff=>buff.targetMonkeyId===targetMonkeyId&&buff.sourceMonkeyId===sourceMonkeyId);if(alreadyExists){showToast("That buff source is already assigned.");return;}state.buffs.push({id:makeId("buff",state.nextBuffNumber++),targetMonkeyId,sourceMonkeyId,type:"income-buff",multiplier:1,flatBonus:0});renderAll();}
+window.removeBuff=function(buffId){state.buffs=state.buffs.filter(buff=>buff.id!==buffId);renderAll();};
+function getBuffsForMonkey(monkeyId){return state.buffs.filter(buff=>buff.targetMonkeyId===monkeyId);}
+window.addSellActionFromSelected=function(){const event=state.events.find(item=>item.id===state.selectedEventId);if(!event)return;const soldState=getMonkeyStateAtRound(event.monkeyId,event.round);if(soldState.sold){showToast("This monkey is already sold by this round.");return;}const sellEvent={id:makeId("event",state.nextEventNumber++),monkeyId:event.monkeyId,towerId:event.towerId,round:event.round,type:"sell",upgrade:"",source:"manual",tick:TICKS_PER_ROUND,computedTick:TICKS_PER_ROUND,sortOrder:Date.now()};state.events.push(sellEvent);state.selectedEventId=sellEvent.id;renderAll();};
+window.deleteSelectedEvent=function(){const event=state.events.find(item=>item.id===state.selectedEventId);if(!event)return;if(event.type==="place"){state.events=state.events.filter(item=>item.monkeyId!==event.monkeyId);state.buffs=state.buffs.filter(buff=>buff.targetMonkeyId!==event.monkeyId&&buff.sourceMonkeyId!==event.monkeyId);delete state.monkeyInstances[event.monkeyId];}else{state.events=state.events.filter(item=>item.id!==event.id);}state.selectedEventId=null;renderAll();};
+function compareEventsByTick(a,b){const tickA=getEventDisplayTick(a);const tickB=getEventDisplayTick(b);if(tickA!==tickB)return tickA-tickB;const typeOrder={place:0,upgrade:1,sell:2};if(typeOrder[a.type]!==typeOrder[b.type])return typeOrder[a.type]-typeOrder[b.type];return a.sortOrder-b.sortOrder;}
+function getEventDisplayTick(event){return clamp(Number(event.computedTick??event.tick??0),0,TICKS_PER_ROUND);}
+function getTower(towerId){return window.BTD6_TOWERS.find(tower=>tower.id===towerId);}
+function makeId(prefix,number){return `${prefix}-${number}`;}
+function clamp(value,min,max){return Math.max(min,Math.min(max,value));}
+function formatMoney(value){const rounded=Math.round(Number(value||0));return `$${rounded.toLocaleString()}`;}
+function showToast(message){el.toast.textContent=message;el.toast.classList.remove("hidden");window.clearTimeout(showToast.timeout);showToast.timeout=window.setTimeout(()=>el.toast.classList.add("hidden"),2200);}
 init();
