@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>BTD6 Farming Calculator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 900px;
+      margin: 30px auto;
+      padding: 20px;
+      background: #111;
+      color: #eee;
+    }
+
+    h1 {
+      color: #ffd34d;
+    }
+
+    .card {
+      background: #1d1d1d;
+      border: 1px solid #333;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      margin-top: 12px;
+    }
+
+    input, select, button {
+      padding: 8px;
+      margin-top: 4px;
+      border-radius: 6px;
+      border: none;
+      font-size: 16px;
+    }
+
+    button {
+      background: #ffd34d;
+      color: #111;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 16px;
+    }
+
+    button:hover {
+      background: #ffea8a;
+    }
+
+    .result {
+      font-size: 18px;
+      line-height: 1.5;
+    }
+
+    .good {
+      color: #7CFF7C;
+    }
+
+    .bad {
+      color: #ff7777;
+    }
+  </style>
+</head>
+<body>
+  <h1>BTD6 Farming Calculator</h1>
+
+  <div class="card">
+    <h2>Basic Farm Profit Calculator</h2>
+
+    <label>
+      Farm Type:
+      <select id="farmType">
+        <option value="base">000 Banana Farm</option>
+        <option value="200">200 Banana Farm</option>
+        <option value="203">203 Marketplace</option>
+        <option value="023">023 Marketplace</option>
+      </select>
+    </label>
+
+    <label>
+      Number of farms:
+      <input id="farmCount" type="number" value="1" min="1">
+    </label>
+
+    <label>
+      Number of rounds:
+      <input id="roundCount" type="number" value="10" min="1">
+    </label>
+
+    <label>
+      Farm cost:
+      <input id="farmCost" type="number" value="1250" min="0">
+    </label>
+
+    <button onclick="calculate()">Calculate</button>
+  </div>
+
+  <div class="card result" id="result">
+    Results will appear here.
+  </div>
+
+  <script>
+    const farms = {
+      base: {
+        name: "000 Banana Farm",
+        incomePerRound: 80
+      },
+      "200": {
+        name: "200 Banana Farm",
+        incomePerRound: 120
+      },
+      "203": {
+        name: "203 Marketplace",
+        incomePerRound: 320
+      },
+      "023": {
+        name: "023 Marketplace",
+        incomePerRound: 416
+      }
+    };
+
+    function calculate() {
+      const farmType = document.getElementById("farmType").value;
+      const farmCount = Number(document.getElementById("farmCount").value);
+      const roundCount = Number(document.getElementById("roundCount").value);
+      const farmCost = Number(document.getElementById("farmCost").value);
+
+      const farm = farms[farmType];
+
+      const totalCost = farmCost * farmCount;
+      const incomePerRound = farm.incomePerRound * farmCount;
+      const totalIncome = incomePerRound * roundCount;
+      const netProfit = totalIncome - totalCost;
+
+      let paybackRounds;
+
+      if (incomePerRound > 0) {
+        paybackRounds = Math.ceil(totalCost / incomePerRound);
+      } else {
+        paybackRounds = "Never";
+      }
+
+      const profitClass = netProfit >= 0 ? "good" : "bad";
+
+      document.getElementById("result").innerHTML = `
+        <strong>${farm.name}</strong><br>
+        Farms: ${farmCount}<br>
+        Income per round: $${incomePerRound.toLocaleString()}<br>
+        Total cost: $${totalCost.toLocaleString()}<br>
+        Total income after ${roundCount} rounds: $${totalIncome.toLocaleString()}<br>
+        Net profit: <span class="${profitClass}">$${netProfit.toLocaleString()}</span><br>
+        Pays itself off after about: ${paybackRounds} rounds
+      `;
+    }
+  </script>
+</body>
+</html>
