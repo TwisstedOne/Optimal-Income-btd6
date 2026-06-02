@@ -165,8 +165,11 @@ function countT5s(towerId,pathIdx,round,excludeMonkeyId=null){ return Object.val
 function allT5sExistBefore(towerId,round){ return [0,1,2].every(i=>countT5s(towerId,i,round,null)>=1); }
 function isUpgradeAtLeast(up,min){ if(!min)return false; const d=up.split("").map(Number), m=min.split("").map(Number); return d.some((v,i)=>v>=m[i]&&m[i]>0); }
 function hasAnyAvailablePath(t){ return t.enabled&&PATH_KEYS.some(p=>(t.maxPathTiers[p]??0)>0); }
-function wouldBreakTowerLimits(towerId){ const total=Object.values(state.monkeyInstances).filter(i=>i.kind==="tower").length; if(total>=state.settings.maxTowers)return true; if(towerId==="banana-farm"&&countExistingTower("banana-farm")>=state.settings.maxBananaFarms)return true; if(towerId==="monkey-buccaneer"&&countExistingTower("monkey-buccaneer")>=getBoatSpotLimit())return true; return false; }
-function getBoatSpotLimit(){ return Math.max(0,Number(state.settings.maxBoatSpots||0))+Math.max(0,Number(state.settings.lordOfAbyss||0)); }
+function wouldBreakTowerLimits(towerId){ const total=Object.values(state.monkeyInstances).filter(i=>i.kind==="tower").length; if(total>=state.settings.maxTowers)return true; if(towerId==="banana-farm"&&countExistingTower("banana-farm")>=state.settings.maxBananaFarms)return true; if(towerId==="monkey-buccaneer"&&isBoatPlacementUnavailable())return true; return false; }
+function isBoatPlacementUnavailable(){ return getBoatSpotLimit()<=0 || countExistingTower("monkey-buccaneer")>=getBoatSpotLimit(); }
+function getBoatSpotLimit(){ return getMapBoatSpotLimit()+getLordOfAbyssBoatSpotLimit(); }
+function getMapBoatSpotLimit(){ return Math.max(0,Number(state.settings.maxBoatSpots||0)); }
+function getLordOfAbyssBoatSpotLimit(){ return Math.max(0,Number(state.settings.lordOfAbyss||0)); }
 function countExistingTower(towerId){ return Object.values(state.monkeyInstances).filter(i=>i.towerId===towerId).length; }
 function hasHeroPlaced(heroId){ return Object.values(state.monkeyInstances).some(i=>i.kind==="hero"&&i.heroId===heroId); }
 function isExistingDragDisabled(inst,round){ if(!inst.absorbedBy)return false; const paragonOrAbsorb=state.events.find(e=>e.id===inst.absorbedBy); const sold=paragonOrAbsorb && state.events.some(e=>e.monkeyId===paragonOrAbsorb.monkeyId&&e.type==="sell"&&e.round<=round); return !sold && inst.absorbedRound<=round; }
@@ -190,7 +193,7 @@ const tutorialSteps=[
   {target:"inspector",title:"Selected Action",text:"Click an action to edit its tick, upgrade tiers, special sub-actions, buffs, or delete/sell it."}
 ];
 function startTutorial(){ state.tutorialIndex=0; showTutorialStep(); }
-function showTutorialStep(){ document.querySelectorAll(".tutorial-highlight").forEach(e=>e.classList.remove("tutorial-highlight")); const step=tutorialSteps[state.tutorialIndex]; if(!step){endTutorial();return;} const target=document.querySelector(`[data-tutorial='${step.target}']`); if(target)target.classList.add("tutorial-highlight"); el.tutorialTitle.textContent=step.title; el.tutorialText.textContent=step.text; el.tutorialNext.textContent=state.tutorialIndex===tutorialSteps.length-1?"Finish":"Next"; el.tutorialOverlay.classList.remove("hidden"); }
+function showTutorialStep(){ document.querySelectorAll(".tutorial-highlight").forEach(e=>e.classList.remove("tutorial-highlight")); const step=tutorialSteps[state.tutorialIndex]; if(!step){endTutorial();return;} const target=document.querySelector(`[data-tutorial='${step.target}']`); if(target){ target.scrollIntoView({block:"nearest",inline:"nearest"}); target.classList.add("tutorial-highlight"); } el.tutorialTitle.textContent=step.title; el.tutorialText.textContent=step.text; el.tutorialNext.textContent=state.tutorialIndex===tutorialSteps.length-1?"Finish":"Next"; el.tutorialOverlay.classList.remove("hidden"); }
 function nextTutorialStep(){ state.tutorialIndex++; showTutorialStep(); }
 function endTutorial(){ document.querySelectorAll(".tutorial-highlight").forEach(e=>e.classList.remove("tutorial-highlight")); el.tutorialOverlay.classList.add("hidden"); }
 
