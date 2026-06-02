@@ -8,7 +8,7 @@ const state = {
   settings: {
     mode: "Timed", goal: "money", targetCashByRound: "", roundStart: 1, startingCash: 650,
     mapDifficulty: "Beginner", players: 1, monkeyKnowledge: true, selectedHero: "quincy",
-    maxTowers: 999, maxBananaFarms: 999, maxBoatSpots: 0, lordOfAbyss: false,
+    maxTowers: 999, maxBananaFarms: 999, maxBoatSpots: 0, lordOfAbyss: 0,
     coverage: { villageBaseFarm: 5, village100Farm: 6, village104Farm: 8, boat: 0 }
   },
   endRound: 40,
@@ -36,17 +36,17 @@ const el = {
   tutorialOverlay: document.getElementById("tutorialOverlay"), tutorialTitle: document.getElementById("tutorialTitle"), tutorialText: document.getElementById("tutorialText"), tutorialSkip: document.getElementById("tutorialSkip"), tutorialNext: document.getElementById("tutorialNext")
 };
 
-function init(){ hydrateIcons(); populateHeroes(); bindGlobalControls(); bindTabs(); renderAll(); startTutorial(); }
+function init(){ hydrateIcons(); populateHeroes(); bindGlobalControls(); bindTabs(); updateMonkeyKnowledgeIcon(); renderAll(); startTutorial(); }
 function hydrateIcons(root=document){ root.querySelectorAll("[data-icon-key]").forEach(slot=>slot.innerHTML=iconHtml(slot.dataset.iconKey)); }
 function iconHtml(key){ const e=window.BTD6_IMAGES?.[key]; if(!e) return `<span class="icon-fallback">❔</span>`; if(e.src) return `<img class="icon-img" src="${e.src}" alt="${key}" draggable="false">`; return `<span class="icon-fallback">${e.fallback||"●"}</span>`; }
 function populateHeroes(){ el.selectedHero.innerHTML = window.BTD6_HEROES.map(h=>`<option value="${h.id}">${h.name}</option>`).join(""); el.selectedHero.value = state.settings.selectedHero; }
 
 function bindGlobalControls(){
   document.querySelectorAll(".segment-option").forEach(button=>button.addEventListener("click",()=>{ const setting=button.dataset.setting, value=button.dataset.value; button.parentElement.querySelectorAll(".segment-option").forEach(o=>o.classList.remove("active")); button.classList.add("active"); state.settings[setting]=value; updateConditionalControls(); }));
-  bindSettingInput(el.targetCashByRound,"targetCashByRound","string"); bindSettingInput(el.startingCash,"startingCash","number"); bindSettingInput(el.mapDifficulty,"mapDifficulty","string"); bindSettingInput(el.players,"players","number",()=>{ state.settings.players=clamp(state.settings.players,1,4); el.players.value=state.settings.players; sanitizePlanForRules(); }); bindSettingInput(el.maxTowers,"maxTowers","number"); bindSettingInput(el.maxBananaFarms,"maxBananaFarms","number"); bindSettingInput(el.maxBoatSpots,"maxBoatSpots","number");
+  bindSettingInput(el.targetCashByRound,"targetCashByRound","string"); bindSettingInput(el.startingCash,"startingCash","number"); bindSettingInput(el.mapDifficulty,"mapDifficulty","string"); bindSettingInput(el.players,"players","number",()=>{ state.settings.players=clamp(state.settings.players,1,4); el.players.value=state.settings.players; sanitizePlanForRules(); }); bindSettingInput(el.maxTowers,"maxTowers","number",renderAll); bindSettingInput(el.maxBananaFarms,"maxBananaFarms","number",renderAll); bindSettingInput(el.maxBoatSpots,"maxBoatSpots","number",()=>{ state.settings.maxBoatSpots=Math.max(0,state.settings.maxBoatSpots); el.maxBoatSpots.value=state.settings.maxBoatSpots; renderAll(); });
   el.roundStart.addEventListener("change",()=>{ state.settings.roundStart=clamp(Number(el.roundStart.value||1),1,MAX_ROUND); el.roundStart.value=state.settings.roundStart; removeEventsBeforeRoundStart(); renderAll(); });
-  el.monkeyKnowledge.addEventListener("change",()=>{ state.settings.monkeyKnowledge=el.monkeyKnowledge.checked; sanitizePlanForRules(); renderAll(); });
-  el.lordOfAbyss.addEventListener("change",()=>{ state.settings.lordOfAbyss=el.lordOfAbyss.checked; renderAll(); });
+  el.monkeyKnowledge.addEventListener("change",()=>{ state.settings.monkeyKnowledge=el.monkeyKnowledge.checked; updateMonkeyKnowledgeIcon(); sanitizePlanForRules(); renderAll(); });
+  el.lordOfAbyss.addEventListener("input",()=>{ state.settings.lordOfAbyss=Math.max(0,Number(el.lordOfAbyss.value||0)); el.lordOfAbyss.value=state.settings.lordOfAbyss; renderAll(); });
   el.selectedHero.addEventListener("change",()=>{ state.settings.selectedHero=el.selectedHero.value; sanitizeHeroesForSelection(); sanitizePlanForRules(); renderAll(); });
   el.villageBaseFarmCoverage.addEventListener("input",()=>state.settings.coverage.villageBaseFarm=Number(el.villageBaseFarmCoverage.value||0));
   el.village100FarmCoverage.addEventListener("input",()=>state.settings.coverage.village100Farm=Number(el.village100FarmCoverage.value||0));
@@ -60,6 +60,7 @@ function bindGlobalControls(){
   el.tutorialSkip.addEventListener("click",endTutorial); el.tutorialNext.addEventListener("click",nextTutorialStep);
 }
 function bindSettingInput(element,key,type,after){ element.addEventListener("input",()=>{ state.settings[key]=type==="number"?Number(element.value||0):element.value; if(after) after(); renderRoundTable(); renderCumulative(); }); }
+function updateMonkeyKnowledgeIcon(){ const icon=el.monkeyKnowledge?.closest(".toggle-row")?.querySelector("[data-icon-key]"); if(!icon)return; icon.dataset.iconKey=state.settings.monkeyKnowledge?"mk":"mkOff"; icon.innerHTML=iconHtml(icon.dataset.iconKey); }
 function bindTabs(){ document.querySelectorAll("[data-center-tab]").forEach(b=>b.addEventListener("click",()=>setTab("center",b.dataset.centerTab))); document.querySelectorAll("[data-right-tab]").forEach(b=>b.addEventListener("click",()=>setTab("right",b.dataset.rightTab))); }
 function setTab(side,tab){ const buttonSelector=side==="center"?"[data-center-tab]":"[data-right-tab]"; const ids=side==="center"?["editorTab","cumulativeTab"]:["availableTab","existingTab","availabilityTab"]; document.querySelectorAll(buttonSelector).forEach(b=>b.classList.toggle("active",(side==="center"?b.dataset.centerTab:b.dataset.rightTab)===tab)); ids.forEach(id=>document.getElementById(id).classList.toggle("active",id===`${tab}Tab`)); if(tab==="cumulative")renderCumulative(); if(tab==="existing")renderExistingTowers(); }
 function updateConditionalControls(){ const show=state.settings.mode==="Least Cash"||state.settings.mode==="Least Tiers"; el.targetCashSubsection.classList.toggle("hidden",!show); }
@@ -164,7 +165,8 @@ function countT5s(towerId,pathIdx,round,excludeMonkeyId=null){ return Object.val
 function allT5sExistBefore(towerId,round){ return [0,1,2].every(i=>countT5s(towerId,i,round,null)>=1); }
 function isUpgradeAtLeast(up,min){ if(!min)return false; const d=up.split("").map(Number), m=min.split("").map(Number); return d.some((v,i)=>v>=m[i]&&m[i]>0); }
 function hasAnyAvailablePath(t){ return t.enabled&&PATH_KEYS.some(p=>(t.maxPathTiers[p]??0)>0); }
-function wouldBreakTowerLimits(towerId){ const total=Object.values(state.monkeyInstances).filter(i=>i.kind==="tower").length; if(total>=state.settings.maxTowers)return true; if(towerId==="banana-farm"&&countExistingTower("banana-farm")>=state.settings.maxBananaFarms)return true; if(towerId==="monkey-buccaneer"&&countExistingTower("monkey-buccaneer")>=state.settings.maxBoatSpots&&!state.settings.lordOfAbyss)return true; return false; }
+function wouldBreakTowerLimits(towerId){ const total=Object.values(state.monkeyInstances).filter(i=>i.kind==="tower").length; if(total>=state.settings.maxTowers)return true; if(towerId==="banana-farm"&&countExistingTower("banana-farm")>=state.settings.maxBananaFarms)return true; if(towerId==="monkey-buccaneer"&&countExistingTower("monkey-buccaneer")>=getBoatSpotLimit())return true; return false; }
+function getBoatSpotLimit(){ return Math.max(0,Number(state.settings.maxBoatSpots||0))+Math.max(0,Number(state.settings.lordOfAbyss||0)); }
 function countExistingTower(towerId){ return Object.values(state.monkeyInstances).filter(i=>i.towerId===towerId).length; }
 function hasHeroPlaced(heroId){ return Object.values(state.monkeyInstances).some(i=>i.kind==="hero"&&i.heroId===heroId); }
 function isExistingDragDisabled(inst,round){ if(!inst.absorbedBy)return false; const paragonOrAbsorb=state.events.find(e=>e.id===inst.absorbedBy); const sold=paragonOrAbsorb && state.events.some(e=>e.monkeyId===paragonOrAbsorb.monkeyId&&e.type==="sell"&&e.round<=round); return !sold && inst.absorbedRound<=round; }
