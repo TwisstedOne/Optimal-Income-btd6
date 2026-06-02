@@ -19,7 +19,7 @@ This version adds the larger simulator framework requested:
 - Pop Income helper action.
 - Tutorial overlay on every page load.
 
-Math is still intentionally stubbed. Add real BTD6 formulas in app.js:
+Math is still intentionally stubbed. Add real BTD6 formulas in js/app.js:
 - calculateEndRoundTowerIncome(round)
 - getMoneyDelta(event, round) for exact bank/ability/paragon costs
 - runCalculator() for your real optimizer
