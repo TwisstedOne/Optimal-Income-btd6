@@ -45,3 +45,32 @@ input,select{background:#1c2636;border-color:rgba(255,255,255,.2);color:#ffffff;
 .blank-page-shell{min-height:calc(100vh - var(--header-height));display:grid;place-items:center;padding:24px;}
 .blank-panel{width:min(720px,100%);padding:32px;text-align:center;}
 .blank-panel p{color:#ffffff;}
+
+/* Bugfix pass: brighter text, lighter blue boxes, stable inspector, and tutorial spotlight. */
+:root{
+  --bg:#263b5f;
+  --panel:#31517c;
+  --panel-2:#3a5f91;
+  --panel-3:#4771a9;
+  --muted:#ffffff;
+  --line:rgba(255,255,255,.24);
+}
+body,.site-nav a,p,.panel-header p,.explain-text,.input-label,.toggle-row,.card-meta,.stat-label,.empty-drop-zone,.empty-inspector,.hint-box,.drop-zone,.site-footer p,.availability-name-row,.tier-label,.card-title,.stat-value,.toolbar-actions label,.mini-check,.sell-toggle-note{color:#ffffff;}
+.site-header,.site-footer{background:rgba(38,59,95,.96);}
+.segmented,input,select,.input-with-icon,.subsection,.advanced-box,.availability-card,.existing-card,.stat-box,.tick-editor,.mini-form,.buff-card,.cumulative-round,.hint-box,.drop-zone,.inspector-tabs,.top-tabs.compact{background:rgba(67,111,168,.86);border-color:rgba(255,255,255,.26);}
+.panel{background:linear-gradient(180deg,rgba(255,255,255,.07),transparent 14rem),var(--panel);}
+.right-panel,.left-panel{background:linear-gradient(180deg,#6aa4e7,#4f82c0);}
+.site-nav a:not(.active):hover{background:rgba(255,255,255,.16);}
+.compact-toggle{padding:8px 0;}
+.inspector{min-height:430px;}
+#inspectorContent{min-height:360px;}
+#inspectorContent.inspector-grid{grid-template-rows:auto auto auto minmax(96px,auto) minmax(42px,auto);align-content:start;}
+.inspector-title{min-height:34px;display:flex;align-items:center;gap:8px;}
+.stat-grid{min-height:116px;}
+.tier-stack{min-height:88px;}
+.inspector-actions{min-height:42px;align-items:end;}
+.tutorial-overlay{z-index:2147483647;pointer-events:auto;}
+.tutorial-shade{z-index:0;background:rgba(0,0,0,.62);}
+.tutorial-spotlight{position:fixed;display:none;border:4px solid var(--yellow);border-radius:22px;box-shadow:0 0 0 9999px rgba(0,0,0,.45),0 0 30px rgba(255,212,90,.72);z-index:1;pointer-events:none;transition:left .16s ease,top .16s ease,width .16s ease,height .16s ease;}
+.tutorial-box{position:fixed;z-index:2;}
+.tutorial-highlight{z-index:auto!important;box-shadow:none!important;}
