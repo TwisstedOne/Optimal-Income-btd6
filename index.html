@@ -47,6 +47,7 @@
         <label class="input-label">Round Start<div class="input-with-icon"><span data-icon-key="roundStart"></span><input id="roundStart" type="number" value="1" min="1" max="140" /></div></label>
         <label class="input-label">Starting Cash<div class="input-with-icon"><span data-icon-key="money"></span><input id="startingCash" type="number" value="650" min="0" /></div></label>
         <label class="input-label">Map Difficulty<select id="mapDifficulty"><option>Beginner</option><option>Intermediate</option><option>Advanced</option><option>Expert</option></select></label>
+        <label class="input-label">Game Difficulty<select id="gameDifficulty"><option>Easy</option><option selected>Medium</option><option>Hard</option><option>Impoppable</option><option>CHIMPS</option></select></label>
         <label class="input-label"># Players<div class="input-with-icon"><span data-icon-key="players"></span><input id="players" type="number" value="1" min="1" max="4" /></div></label>
         <label class="toggle-row"><span class="toggle-label"><span data-icon-key="mk"></span>Monkey Knowledge</span><input id="monkeyKnowledge" class="switch-input" type="checkbox" checked /><span class="switch-ui"></span></label>
       </section>
@@ -54,7 +55,7 @@
       <section class="control-section">
         <h2>Hero / Tower Limits</h2>
         <label class="input-label">Selected Hero<select id="selectedHero"></select></label>
-        <label class="input-label">Max Towers<div class="input-with-icon"><span data-icon-key="monkey"></span><input id="maxTowers" type="number" value="999" min="0" /></div></label>
+        <label class="input-label">Max Towers (includes hero)<div class="input-with-icon"><span data-icon-key="monkey"></span><input id="maxTowers" type="number" value="999" min="0" /></div></label>
         <div class="subsection">
           <label class="input-label">Max Banana Farms<div class="input-with-icon"><span data-icon-key="bananaFarm"></span><input id="maxBananaFarms" type="number" value="999" min="0" /></div></label>
           <label class="input-label">Max Boat Spots<div class="input-with-icon"><span data-icon-key="boat"></span><input id="maxBoatSpots" type="number" value="0" min="0" /></div></label>
@@ -103,7 +104,7 @@
     <p>OptimalBtd6 is an unofficial fan-made planner. It is not affiliated with, endorsed, sponsored, or specifically approved by Ninja Kiwi. Bloons TD 6 and all related names, images, and game content are trademarks or property of their respective owners.</p>
   </footer>
 
-  <div id="tutorialOverlay" class="tutorial-overlay hidden"><div class="tutorial-shade"></div><div id="tutorialBox" class="tutorial-box"><h2 id="tutorialTitle"></h2><p id="tutorialText"></p><div class="tutorial-actions"><button id="tutorialSkip">Skip</button><button id="tutorialNext">Next</button></div></div></div>
+  <div id="tutorialOverlay" class="tutorial-overlay hidden"><div class="tutorial-shade"></div><div id="tutorialHighlight" class="tutorial-spotlight"></div><div id="tutorialBox" class="tutorial-box"><h2 id="tutorialTitle"></h2><p id="tutorialText"></p><div class="tutorial-actions"><button id="tutorialSkip">Skip</button><button id="tutorialNext">Next</button></div></div></div>
   <div id="toast" class="toast hidden"></div>
 
   <script src="data/images.js"></script>
