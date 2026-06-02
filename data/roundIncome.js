@@ -1,4 +1,5 @@
-window.BTD6_ROUND_INCOME = {
+/* Pop income data. End-of-round income is calculated as 100 + round number in app.js. */
+window.BTD6_ROUND_POP_INCOME = {
   1: 0,
   2: 0,
   3: 0,

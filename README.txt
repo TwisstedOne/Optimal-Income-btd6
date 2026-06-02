@@ -1,25 +1,25 @@
-OptimalBtd6 Framework v2
+OptimalBtd6 Framework v3
 
-Important v2 changes:
-- Starting Lives is now Round Start.
-- Selected Action is separated from Available / Existing / Rules.
-- Round map scroll final row fix.
-- Base 000 placements cannot be edited into upgrades.
-- Available towers are image + price only.
-- Top website header added: OptimalBtd6.
-- Actions now get a computed tick from 0 to 1260.
-- Purchases auto-snap to earliest affordable tick.
-- Same-round buy/sell no longer passes just because net cost is 0.
-- Upgrade editor now uses stacked +/- controls.
-- Selected Action has an MK Buffs tab.
-- Actions are displayed sorted by tick.
-- Availability uses max path tiers, default 5/5/5.
-- End round is clamped to 140.
+This version adds the larger simulator framework requested:
+- Editable action tick with slider + manual number input.
+- Rules sanitization: disabling a tower removes instances; lowering path limits clamps existing upgrades.
+- Goal explanation text.
+- Separate special actions for bank collect/deposit, absorbs, abilities, hero level skip, paragon creation, and pop-income timing.
+- Cumulative view selections are read-only but inspectable.
+- Geraldo goodies appear only when Geraldo is selected.
+- Moving Round Start removes earlier actions/towers.
+- Marketplace Tick removed; Action Tick is used instead.
+- Paragon creation hook and absorbed metadata/marking.
+- T5 duplicate limit based on # Players, with dart bottom-path exception for MK/Silas.
+- Calculate button adds a generated 000 farm at the starting round for testing.
+- Heroes appear in Available/Existing and use hero-specific actions.
+- Map difficulty option.
+- Advanced coverage section.
+- Lord of the Abyss option.
+- Pop Income helper action.
+- Tutorial overlay on every page load.
 
-Math hooks:
-- app.js -> calculateTowerIncomeForRound(round)
-- app.js -> generateOptimalPlan()
-
-Images:
-- Put files in assets/icons or assets/towers.
-- Edit data/images.js, e.g. bananaFarm: { src: "assets/towers/banana-farm.png", fallback: "🍌" }
+Math is still intentionally stubbed. Add real BTD6 formulas in app.js:
+- calculateEndRoundTowerIncome(round)
+- getMoneyDelta(event, round) for exact bank/ability/paragon costs
+- runCalculator() for your real optimizer
