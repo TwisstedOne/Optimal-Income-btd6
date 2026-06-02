@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>BTD6 Farming Calculator Framework</title>
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+  <div class="app-shell">
+    <!-- LEFT PANEL -->
+    <aside class="panel left-panel">
+      <div class="panel-header">
+        <h1>Planner Setup</h1>
+        <p>Inputs and restrictions for the calculator.</p>
+      </div>
+
+      <section class="control-section">
+        <h2>Event Type</h2>
+
+        <div class="segmented three" id="modeSegment">
+          <button class="segment-option active" data-setting="mode" data-value="Timed">
+            <span data-icon-key="timed"></span>
+            <span>Timed</span>
+          </button>
+
+          <button class="segment-option" data-setting="mode" data-value="Least Cash">
+            <span data-icon-key="leastCash"></span>
+            <span>Least Cash</span>
+          </button>
+
+          <button class="segment-option" data-setting="mode" data-value="Least Tiers">
+            <span data-icon-key="leastTiers"></span>
+            <span>Least Tiers</span>
+          </button>
+        </div>
+      </section>
+
+      <section class="control-section">
+        <h2>Goal</h2>
+
+        <div class="segmented two">
+          <button class="segment-option active" data-setting="goal" data-value="money">
+            <span data-icon-key="money"></span>
+            <span>Max Money</span>
+          </button>
+
+          <button class="segment-option" data-setting="goal" data-value="value">
+            <span data-icon-key="value"></span>
+            <span>Max Value</span>
+          </button>
+        </div>
+
+        <div class="subsection hidden" id="targetCashSubsection">
+          <label class="input-label">
+            Target cash by round
+            <div class="input-with-icon">
+              <span data-icon-key="money"></span>
+              <input id="targetCashByRound" type="number" min="0" placeholder="Example: 100000" />
+            </div>
+          </label>
+        </div>
+      </section>
+
+      <section class="control-section">
+        <h2>Starting Conditions</h2>
+
+        <label class="input-label">
+          Starting Cash
+          <div class="input-with-icon">
+            <span data-icon-key="money"></span>
+            <input id="startingCash" type="number" value="650" min="0" />
+          </div>
+        </label>
+
+        <label class="input-label">
+          Starting Lives
+          <div class="input-with-icon">
+            <span data-icon-key="lives"></span>
+            <input id="startingLives" type="number" value="200" min="1" />
+          </div>
+        </label>
+
+        <label class="toggle-row">
+          <span class="toggle-label">
+            <span data-icon-key="mk"></span>
+            Monkey Knowledge
+          </span>
+
+          <input id="monkeyKnowledge" class="switch-input" type="checkbox" checked />
+          <span class="switch-ui"></span>
+        </label>
+      </section>
+
+      <section class="control-section">
+        <h2>Hero / Tower Limits</h2>
+
+        <label class="input-label">
+          Selected Hero
+          <select id="selectedHero">
+            <option>None</option>
+            <option selected>Quincy</option>
+            <option>Gwendolin</option>
+            <option>Striker Jones</option>
+            <option>Obyn Greenfoot</option>
+            <option>Benjamin</option>
+            <option>Etienne</option>
+            <option>Geraldo</option>
+            <option>Corvus</option>
+            <option>Rosalia</option>
+          </select>
+        </label>
+
+        <label class="input-label">
+          Max Towers
+          <div class="input-with-icon">
+            <span data-icon-key="monkey"></span>
+            <input id="maxTowers" type="number" value="999" min="0" />
+          </div>
+        </label>
+
+        <div class="subsection">
+          <label class="input-label">
+            Max Banana Farms
+            <div class="input-with-icon">
+              <span data-icon-key="bananaFarm"></span>
+              <input id="maxBananaFarms" type="number" value="999" min="0" />
+            </div>
+          </label>
+
+          <label class="input-label">
+            Max Boat Spots
+            <div class="input-with-icon">
+              <span data-icon-key="boat"></span>
+              <input id="maxBoatSpots" type="number" value="0" min="0" />
+            </div>
+          </label>
+        </div>
+      </section>
+    </aside>
+
+    <!-- CENTER PANEL -->
+    <main class="panel center-panel">
+      <div class="top-tabs">
+        <button class="tab-button active" data-center-tab="editor">Round Editor</button>
+        <button class="tab-button" data-center-tab="cumulative">Cumulative View</button>
+      </div>
+
+      <section id="editorTab" class="tab-page active">
+        <div class="round-toolbar">
+          <div>
+            <h1>Round Map</h1>
+            <p>Drag available or existing monkeys into a round row. Grey = user locked. Purple = calculator generated.</p>
+          </div>
+
+          <div class="toolbar-actions">
+            <label>
+              End Round
+              <input id="endRoundInput" type="number" min="1" max="140" value="40" />
+            </label>
+
+            <button id="buildRoundsButton" class="secondary-button">Build Rows</button>
+            <button id="calculateButton" class="primary-button">Calculate</button>
+          </div>
+        </div>
+
+        <div class="hint-box">
+          The calculator math is intentionally stubbed. Your future optimizer goes inside
+          <code>generateOptimalPlan()</code> and your income math goes inside
+          <code>calculateTowerIncomeForRound()</code> in <code>app.js</code>.
+        </div>
+
+        <div class="round-map-wrapper">
+          <table class="round-table">
+            <thead>
+              <tr>
+                <th>Round</th>
+                <th>Start $</th>
+                <th>Round Income</th>
+                <th>End $</th>
+                <th>Locked / Generated Actions</th>
+              </tr>
+            </thead>
+
+            <tbody id="roundTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="cumulativeTab" class="tab-page">
+        <div class="round-toolbar">
+          <div>
+            <h1>Cumulative View</h1>
+            <p>Read-only view of what exists by each round after all placements, upgrades, and sells.</p>
+          </div>
+        </div>
+
+        <div id="cumulativeList" class="cumulative-list"></div>
+      </section>
+    </main>
+
+    <!-- RIGHT PANEL -->
+    <aside class="panel right-panel">
+      <div class="top-tabs compact">
+        <button class="tab-button active" data-right-tab="available">Available</button>
+        <button class="tab-button" data-right-tab="existing">Existing</button>
+        <button class="tab-button" data-right-tab="availability">Rules</button>
+      </div>
+
+      <section id="availableTab" class="tab-page active">
+        <div class="panel-header small">
+          <h1>Available Editor</h1>
+          <p>Drag a base tower into a round.</p>
+        </div>
+
+        <div id="availableTowerList" class="card-list"></div>
+      </section>
+
+      <section id="existingTab" class="tab-page">
+        <div class="panel-header small">
+          <h1>Existing Monkeys</h1>
+          <p>Drag an existing monkey into a later round to add its next upgrade.</p>
+        </div>
+
+        <div id="existingTowerList" class="card-list"></div>
+      </section>
+
+      <section id="availabilityTab" class="tab-page">
+        <div class="panel-header small">
+          <h1>Availability Rules</h1>
+          <p>Toggle towers and paths for planning restrictions.</p>
+        </div>
+
+        <div id="availabilityList" class="availability-list"></div>
+      </section>
+
+      <section class="inspector">
+        <div class="inspector-header">
+          <h2>Selected Action</h2>
+          <button id="clearSelectionButton" class="tiny-button">Clear</button>
+        </div>
+
+        <div id="inspectorContent" class="empty-inspector">
+          Click a monkey/action in the Round Map.
+        </div>
+      </section>
+    </aside>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="data/images.js"></script>
+  <script src="data/towers.js"></script>
+  <script src="data/roundIncome.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
