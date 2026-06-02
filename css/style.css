@@ -45,3 +45,9 @@ input,select{background:#1c2636;border-color:rgba(255,255,255,.2);color:#ffffff;
 .blank-page-shell{min-height:calc(100vh - var(--header-height));display:grid;place-items:center;padding:24px;}
 .blank-panel{width:min(720px,100%);padding:32px;text-align:center;}
 .blank-panel p{color:#ffffff;}
+
+/* Tutorial overlay layering: draw highlight in the fixed overlay instead of lifting page panels. */
+.tutorial-overlay{position:fixed;inset:0;z-index:2147483644;pointer-events:auto;isolation:isolate;}
+.tutorial-shade{position:absolute;inset:0;z-index:0;background:rgba(0,0,0,.5);}
+.tutorial-highlight{position:fixed;z-index:2147483645;pointer-events:none;border:4px solid var(--yellow);border-radius:20px;box-shadow:0 0 26px rgba(255,212,90,.55);background:rgba(255,212,90,.08);}
+.tutorial-box{position:fixed;z-index:2147483647;left:50%;bottom:28px;transform:translateX(-50%);width:min(520px,calc(100vw - 32px));}
