@@ -1,4 +1,4 @@
-/* Pop income data. End-of-round income is calculated as 100 + round number in app.js. */
+/* Pop income data. End-of-round income is calculated as 100 + round number in js/app.js. */
 window.BTD6_ROUND_POP_INCOME = {
   1: 0,
   2: 0,
