@@ -61,23 +61,15 @@
           <label class="input-label">Max Boat Spots<div class="input-with-icon"><span data-icon-key="boat"></span><input id="maxBoatSpots" type="number" value="0" min="0" /></div></label>
           <label class="input-label">Lord of the Abyss Boat Spots<div class="input-with-icon"><span data-icon-key="abyss"></span><input id="lordOfAbyss" type="number" value="0" min="0" /></div></label>
         </div>
-        <details class="advanced-box">
-          <summary>Advanced coverage options</summary>
-          <p class="explain-text">These are calculator hints, not hard rules. Use them later when the optimizer estimates how many farms/towers a support tower can cover.</p>
-          <label class="input-label">Village base farm coverage<input id="villageBaseFarmCoverage" type="number" value="5" min="0" /></label>
-          <label class="input-label">Village 100 farm coverage<input id="village100FarmCoverage" type="number" value="6" min="0" /></label>
-          <label class="input-label">Village 104 farm coverage<input id="village104FarmCoverage" type="number" value="8" min="0" /></label>
-          <label class="input-label">Boat support coverage<input id="boatCoverage" type="number" value="0" min="0" /></label>
-        </details>
       </section>
     </aside>
 
     <main class="panel center-panel" data-tutorial="round-map"><div class="resize-handle resize-handle-left" data-resize="left" title="Drag to resize the setup panel"></div><div class="resize-handle resize-handle-right" data-resize="right" title="Drag to resize the right panel"></div>
       <div class="top-tabs"><button class="tab-button active" data-center-tab="editor">Round Editor</button><button class="tab-button" data-center-tab="cumulative">Cumulative View</button></div>
       <section id="editorTab" class="tab-page center-tab-page active">
-        <div class="round-toolbar"><div><h1>Round Map</h1><p>All placements, upgrades, sells, bank actions, absorbs, ability uses, paragon buys, and pop-income timings become actions here.</p></div><div class="toolbar-actions"><label>End Round<input id="endRoundInput" type="number" min="1" max="140" value="40" /></label><button id="buildRoundsButton" class="secondary-button">Build Rows</button><button id="calculateButton" class="primary-button">Calculate</button></div></div>
-        <div class="hint-box">Action tick is <code>0</code> to <code>1260</code>. End-of-round cash, like <code>100 + round #</code>, is added after the round. Tower-generated income timings and end-of-round income bonuses are controlled in <code>data/towerIncome.js</code>.</div>
-        <div class="round-map-wrapper"><table class="round-table"><thead><tr><th>Round</th><th>Start $</th><th>Pop Income</th><th>End Income</th><th>Round Income</th><th>Tick $</th><th>End $</th></tr></thead><tbody id="roundTableBody"></tbody></table></div>
+        <div class="round-toolbar"><div><h1>Round Map</h1><p>All placements, upgrades, sells, bank actions, absorbs, ability uses, paragon buys, and pop-income timings become actions here.</p></div><div class="toolbar-actions"><label>End Round<input id="endRoundInput" type="number" min="1" max="140" value="40" /></label><button id="buildRoundsButton" class="secondary-button">Build Rows</button><button id="calculateButton" class="primary-button">Calculate</button><button id="clearAllButton" class="secondary-button">Clear All</button></div></div>
+        <div class="hint-box">Action tick is <code>0</code> to <code>100</code>. End-of-round cash, like <code>100 + round #</code>, is added after the round. Tower-generated income timings and end-of-round income bonuses are controlled in <code>data/towerIncome.js</code>.</div>
+        <div class="round-map-wrapper"><table class="round-table"><thead><tr><th>Round</th><th>Start $</th><th>Pop Income</th><th>Round Income</th><th>End Income</th><th>Tick $</th><th>End $</th></tr></thead><tbody id="roundTableBody"></tbody></table></div>
       </section>
       <section id="cumulativeTab" class="tab-page center-tab-page">
         <div class="round-toolbar"><div><h1>Cumulative View</h1><p>Read-only tower state by round. You can click towers here to inspect them, but not edit them.</p></div></div>
