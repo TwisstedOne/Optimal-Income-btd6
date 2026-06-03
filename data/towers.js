@@ -20,11 +20,22 @@ window.BTD6_HEROES = [
 ];
 
 window.BTD6_GERALDO_ITEMS = [
-  {id:"shooty-turret",name:"Shooty Turret",iconKey:"item",cost:250},
-  {id:"fertilizer",name:"Fertilizer",iconKey:"bananaFarm",cost:300},
-  {id:"glue-trap",name:"Glue Trap",iconKey:"item",cost:100},
-  {id:"pickles",name:"Pickles",iconKey:"item",cost:200},
-  {id:"paragon-totem",name:"Paragon Totem",iconKey:"paragon",cost:20000}
+  {id:"shooty-turret",name:"Shooty Turret",iconKey:"shootyTurret",cost:250},
+  {id:"stack-of-old-nails",name:"Stack of Old Nails",iconKey:"stackNails",cost:50},
+  {id:"creepy-idol",name:"Creepy Idol",iconKey:"creepyIdol",cost:120},
+  {id:"jar-of-pickles",name:"Jar of Pickles",iconKey:"jarPickles",cost:150},
+  {id:"rare-quincy-action-figure",name:"Rare Quincy Action Figure",iconKey:"nft",cost:650},
+  {id:"see-invisiblity-potion",name:"See Invisibility Potion",iconKey:"invisPot",cost:200},
+  {id:"tube-of-amaz-o-glue",name:"Tube of Amaz-o-Glue",iconKey:"glueTube",cost:150},
+  {id:"sharpening-stone",name:"Sharpening Stone",iconKey:"sharpStone",cost:200},
+  {id:"worn-heros-cape",name:"Worn Hero's Cape",iconKey:"heroCape",cost:1750},
+  {id:"blade-trap",name:"Blade Trap",iconKey:"bladeTrap",cost:650},
+  {id:"bottle-of-gerrys-fire-hot-sauce",name:"Bottle of 'Gerry's Fire' Hot Sauce",iconKey:"hotSauce",cost:650},
+  {id:"fertilizer",name:"Fertilizer",iconKey:"fertilizer",cost:300},
+  {id:"pet-rabbit",name:"Pet Rabbit",iconKey:"petRabbit",cost:1750},
+  {id:"rejuv-potion",name:"Rejuv Potion",iconKey:"rejuvPot",cost:2000},
+  {id:"genie-bottle",name:"Genie Bottle",iconKey:"genieBottle",cost:2500},
+  {id:"paragon-power-totem",name:"Paragon Power Totem",iconKey:"paragonTotem",cost:26000},
 ];
 
 const DEFAULT_UPGRADE_COSTS = {"100":500,"200":1000,"300":4000,"400":12000,"500":45000,"010":500,"020":1000,"030":4000,"040":12000,"050":45000,"001":500,"002":1000,"003":4000,"004":12000,"005":45000};
