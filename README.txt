@@ -1,7 +1,7 @@
 OptimalBtd6 Framework v3
 
 This version adds the larger simulator framework requested:
-- Editable action tick with slider + manual number input.
+- Editable action tick from 0 to 100 with slider + manual number input.
 - Rules sanitization: disabling a tower removes instances; lowering path limits clamps existing upgrades.
 - Goal explanation text.
 - Separate special actions for bank collect/deposit, absorbs, abilities, hero level skip, paragon creation, and pop-income timing.
@@ -11,10 +11,9 @@ This version adds the larger simulator framework requested:
 - Marketplace Tick removed; Action Tick is used instead.
 - Paragon creation hook and absorbed metadata/marking.
 - T5 duplicate limit based on # Players, with dart bottom-path exception for MK/Silas.
-- Calculate button adds a generated 000 farm at the starting round for testing.
+- Calculate button adds an editable generated 000 farm at the starting round for testing.
 - Heroes appear in Available/Existing and use hero-specific actions.
 - Map difficulty option.
-- Advanced coverage section.
 - Lord of the Abyss option.
 - Pop Income helper action.
 - Tutorial overlay on every page load.
