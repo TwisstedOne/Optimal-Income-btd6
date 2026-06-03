@@ -175,13 +175,12 @@ window.toggleSellHereFromSelected=function(){
   const stateAtEvent=getMonkeyStateAtRound(inst.id,ev.round);
   if(["place","place-hero","place-geraldo-item"].includes(ev.type)||(ev.type==="upgrade"&&ev.upgrade==="000")||!stateAtEvent.placed||stateAtEvent.sold){ showToast("Sell is unavailable on the 000/base placement."); return; }
   const existing=state.events.find(e=>e.type==="sell"&&e.monkeyId===ev.monkeyId&&e.round===ev.round&&e.id!==ev.id); if(existing){ state.events=state.events.filter(e=>e.id!==existing.id); state.selectedEventId=ev.id; renderAll(); return; }
-  if(ev.type==="snapshot"){
-    const before={type:ev.type,snapshotUpgrade:ev.snapshotUpgrade,upgrade:ev.upgrade,fromUpgrade:ev.fromUpgrade,towerId:ev.towerId,heroId:ev.heroId};
-    ev.type="sell"; delete ev.snapshotUpgrade; delete ev.upgrade; delete ev.fromUpgrade;
-    const err=validateMonkeyTimeline(ev.monkeyId); if(err){ Object.assign(ev,before); showToast(err); return; }
-    ev.dirty=true; renderAll(); return;
-  }
-  const sell=makeEvent({monkeyId:ev.monkeyId,towerId:inst.towerId,heroId:inst.heroId,round:ev.round,type:"sell",source:"manual",tick:ev.tick}); state.events.push(sell); const err=validateMonkeyTimeline(ev.monkeyId); if(err){ state.events=state.events.filter(e=>e.id!==sell.id); showToast(err); return; } state.selectedEventId=sell.id; renderAll();
+  const timeline=getMonkeyTimeline(ev.monkeyId);
+  if(timeline[timeline.length-1]?.id!==ev.id){ showToast("Sell can only convert the final action for this monkey."); return; }
+  const before={type:ev.type,snapshotUpgrade:ev.snapshotUpgrade,upgrade:ev.upgrade,fromUpgrade:ev.fromUpgrade,towerId:ev.towerId,heroId:ev.heroId,itemId:ev.itemId,moneySpent:ev.moneySpent,amount:ev.amount,cost:ev.cost,absorbedMonkeyIds:ev.absorbedMonkeyIds};
+  ev.type="sell"; delete ev.snapshotUpgrade; delete ev.upgrade; delete ev.fromUpgrade; delete ev.moneySpent; delete ev.amount; delete ev.cost; delete ev.absorbedMonkeyIds;
+  const err=validateMonkeyTimeline(ev.monkeyId); if(err){ Object.assign(ev,before); showToast(err); return; }
+  ev.dirty=true; state.selectedEventId=ev.id; renderAll();
 };
 window.deleteSelectedEvent=function(){ const ev=state.events.find(e=>e.id===state.selectedEventId); if(!ev)return; if(ev.type==="place"||ev.type==="place-hero"||ev.type==="place-geraldo-item"||ev.type==="paragon"){ state.events=state.events.filter(e=>e.monkeyId!==ev.monkeyId); state.buffs=state.buffs.filter(b=>b.targetMonkeyId!==ev.monkeyId&&b.sourceMonkeyId!==ev.monkeyId); delete state.monkeyInstances[ev.monkeyId]; } else { state.events=state.events.filter(e=>e.id!==ev.id); } state.selectedEventId=null; renderAll(); };
 
@@ -203,7 +202,8 @@ function runCalculator(){ state.events=state.events.filter(e=>e.source!=="genera
 
 
 function getGameDifficultyPriceMultiplier(){ return ({Easy:.85,Medium:1,Hard:1.08,Impoppable:1.2,CHIMPS:1.2})[state.settings.gameDifficulty]||1; }
-function priceWithDifficulty(price){ return Math.round(Number(price||0)*getGameDifficultyPriceMultiplier()); }
+function roundToNearestFive(value){ return Math.round(Number(value||0)/5)*5; }
+function priceWithDifficulty(price){ return roundToNearestFive(Number(price||0)*getGameDifficultyPriceMultiplier()); }
 function isFinalUpgrade(up){ return String(up||"000").split("").some(v=>v==="5"); }
 function upgradeNums(up){ return String(up||"000").split("").map(Number); }
 function isUpgradeGreaterOrEqual(next,prev){ const n=upgradeNums(next), p=upgradeNums(prev); return n.every((v,i)=>v>=p[i]); }
