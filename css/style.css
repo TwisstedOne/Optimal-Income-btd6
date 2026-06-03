@@ -79,3 +79,4 @@ body,.site-nav a,p,.panel-header p,.explain-text,.input-label,.toggle-row,.card-
 .tutorial-spotlight{position:fixed;display:none;border:4px solid var(--yellow);border-radius:22px;box-shadow:0 0 0 9999px rgba(0,0,0,.45),0 0 30px rgba(255,212,90,.72);z-index:1;pointer-events:none;transition:left .16s ease,top .16s ease,width .16s ease,height .16s ease;}
 .tutorial-box{position:fixed;z-index:2;}
 .tutorial-highlight{z-index:auto!important;box-shadow:none!important;}
+.step-btn:disabled{filter:grayscale(1);opacity:.35;cursor:not-allowed}.tier-control.path-locked .tier-label,.tier-control.path-locked .tier-value{opacity:.58}
