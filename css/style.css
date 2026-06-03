@@ -106,3 +106,12 @@ body,.site-nav a,p,.panel-header p,.explain-text,.input-label,.toggle-row,.card-
 .round-table{min-width:820px}.round-summary-row td{border-bottom:0}.round-action-row td{padding-top:0}.round-action-cell{background:rgba(0,0,0,.06)}.round-action-cell .round-actions{align-items:flex-start;min-height:46px;padding:2px 0 6px}
 .round-table th:not(:last-child),.round-table td:not(:last-child){border-right:1px solid rgba(255,255,255,.18)}
 .round-action-cell{border-right:0!important}
+
+/* Performance mode: only the active round runs tick-by-tick income math. */
+.round-row.active-round{background:rgba(76,225,126,.28)!important;box-shadow:inset 4px 0 0 var(--green),0 0 0 1px rgba(76,225,126,.28);}
+.round-row.active-round .round-action-cell{background:rgba(37,135,74,.18);}
+.active-round-badge{display:inline-flex;margin-left:8px;padding:2px 7px;border-radius:999px;background:var(--green);color:#062010;font-size:.68rem;font-weight:950;text-transform:uppercase;letter-spacing:.04em;vertical-align:middle;}
+.round-money-editor.active{padding:7px 9px;border-radius:12px;background:rgba(24,151,78,.26);border:1px solid rgba(76,225,126,.42);}
+.round-money-static{display:grid;gap:2px;width:100%;min-width:170px;padding:8px 9px;border-radius:12px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;text-align:left;cursor:pointer;}
+.round-money-static:hover{border-color:rgba(76,225,126,.7);background:rgba(76,225,126,.16);}
+.round-money-note{font-size:.68rem;color:#e8f6ed;font-weight:850;text-transform:uppercase;letter-spacing:.035em;}
