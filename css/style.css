@@ -104,3 +104,5 @@ body,.site-nav a,p,.panel-header p,.explain-text,.input-label,.toggle-row,.card-
 .round-money-controls input[type=number]{min-height:32px;padding:6px 8px;}
 @media (max-width:1180px){.resize-handle{display:none}.app-shell{grid-template-columns:1fr}.inspector{flex:auto}}
 .round-table{min-width:820px}.round-summary-row td{border-bottom:0}.round-action-row td{padding-top:0}.round-action-cell{background:rgba(0,0,0,.06)}.round-action-cell .round-actions{align-items:flex-start;min-height:46px;padding:2px 0 6px}
+.round-table th:not(:last-child),.round-table td:not(:last-child){border-right:1px solid rgba(255,255,255,.18)}
+.round-action-cell{border-right:0!important}

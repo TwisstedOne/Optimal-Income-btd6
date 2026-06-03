@@ -77,7 +77,7 @@
       <section id="editorTab" class="tab-page center-tab-page active">
         <div class="round-toolbar"><div><h1>Round Map</h1><p>All placements, upgrades, sells, bank actions, absorbs, ability uses, paragon buys, and pop-income timings become actions here.</p></div><div class="toolbar-actions"><label>End Round<input id="endRoundInput" type="number" min="1" max="140" value="40" /></label><button id="buildRoundsButton" class="secondary-button">Build Rows</button><button id="calculateButton" class="primary-button">Calculate</button></div></div>
         <div class="hint-box">Action tick is <code>0</code> to <code>1260</code>. End-of-round cash, like <code>100 + round #</code>, is added after the round. Tower-generated income timings and end-of-round income bonuses are controlled in <code>data/towerIncome.js</code>.</div>
-        <div class="round-map-wrapper"><table class="round-table"><thead><tr><th>Round</th><th>Start $</th><th>Pop Income</th><th>End Income</th><th>Tick $</th><th>End $</th></tr></thead><tbody id="roundTableBody"></tbody></table></div>
+        <div class="round-map-wrapper"><table class="round-table"><thead><tr><th>Round</th><th>Start $</th><th>Pop Income</th><th>End Income</th><th>Round Income</th><th>Tick $</th><th>End $</th></tr></thead><tbody id="roundTableBody"></tbody></table></div>
       </section>
       <section id="cumulativeTab" class="tab-page center-tab-page">
         <div class="round-toolbar"><div><h1>Cumulative View</h1><p>Read-only tower state by round. You can click towers here to inspect them, but not edit them.</p></div></div>
