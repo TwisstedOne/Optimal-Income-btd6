@@ -18,7 +18,7 @@
   </header>
 
   <div class="app-shell">
-    <aside class="panel left-panel" data-tutorial="left-panel">
+    <aside class="panel left-panel" data-tutorial="left-panel"><div class="resize-handle resize-handle-right" data-resize="left" title="Drag to resize the setup panel"></div>
       <div class="panel-header"><h1>Planner Setup</h1><p>Inputs and restrictions for the calculator.</p></div>
 
       <section class="control-section">
@@ -72,12 +72,12 @@
       </section>
     </aside>
 
-    <main class="panel center-panel" data-tutorial="round-map">
+    <main class="panel center-panel" data-tutorial="round-map"><div class="resize-handle resize-handle-left" data-resize="left" title="Drag to resize the setup panel"></div><div class="resize-handle resize-handle-right" data-resize="right" title="Drag to resize the right panel"></div>
       <div class="top-tabs"><button class="tab-button active" data-center-tab="editor">Round Editor</button><button class="tab-button" data-center-tab="cumulative">Cumulative View</button></div>
       <section id="editorTab" class="tab-page center-tab-page active">
         <div class="round-toolbar"><div><h1>Round Map</h1><p>All placements, upgrades, sells, bank actions, absorbs, ability uses, paragon buys, and pop-income timings become actions here.</p></div><div class="toolbar-actions"><label>End Round<input id="endRoundInput" type="number" min="1" max="140" value="40" /></label><button id="buildRoundsButton" class="secondary-button">Build Rows</button><button id="calculateButton" class="primary-button">Calculate</button></div></div>
-        <div class="hint-box">Action tick is <code>0</code> to <code>1260</code>. End-of-round cash, like <code>100 + round #</code>, is added after the round and cannot be spent during the round.</div>
-        <div class="round-map-wrapper"><table class="round-table"><thead><tr><th>Round</th><th>Start $</th><th>Pop Income</th><th>End Income</th><th>End $</th><th>Actions</th></tr></thead><tbody id="roundTableBody"></tbody></table></div>
+        <div class="hint-box">Action tick is <code>0</code> to <code>1260</code>. End-of-round cash, like <code>100 + round #</code>, is added after the round. Add optional income tick arrays such as <code>[340,500,560]</code> to release round pop income during the round, or use <strong>End +</strong> to add custom end-round income.</div>
+        <div class="round-map-wrapper"><table class="round-table"><thead><tr><th>Round</th><th>Start $</th><th>Pop Income</th><th>Income Ticks</th><th>End Income</th><th>Tick $</th><th>End $</th><th>Actions</th></tr></thead><tbody id="roundTableBody"></tbody></table></div>
       </section>
       <section id="cumulativeTab" class="tab-page center-tab-page">
         <div class="round-toolbar"><div><h1>Cumulative View</h1><p>Read-only tower state by round. You can click towers here to inspect them, but not edit them.</p></div></div>
@@ -85,14 +85,14 @@
       </section>
     </main>
 
-    <aside class="panel right-panel">
+    <aside class="panel right-panel"><div class="resize-handle resize-handle-left" data-resize="right" title="Drag to resize the right panel"></div><div class="resize-handle resize-handle-right" data-resize="right-edge" title="Drag to resize the right panel"></div>
       <div class="right-tab-area" data-tutorial="right-panel">
         <div class="top-tabs compact"><button class="tab-button active" data-right-tab="available">Available</button><button class="tab-button" data-right-tab="existing">Existing</button><button class="tab-button" data-right-tab="availability">Rules</button></div>
         <section id="availableTab" class="tab-page right-tab-page active"><div class="panel-header small"><h1>Available Editor</h1><p>Drag picture + price cards into a round.</p></div><div id="availableTowerList" class="available-grid"></div><div id="geraldoShelf" class="geraldo-shelf"></div></section>
         <section id="existingTab" class="tab-page right-tab-page"><div class="panel-header small"><h1>Existing Monkeys</h1><p>Absorbed/paragon-marked towers are blocked after their paragon round unless that paragon is sold.</p></div><div id="existingTowerList" class="card-list"></div></section>
         <section id="availabilityTab" class="tab-page right-tab-page"><div class="panel-header small"><h1>Availability Rules</h1><p>Set max path tiers. Invalid placed upgrades are clamped or removed automatically.</p></div><div id="availabilityList" class="availability-list"></div></section>
       </div>
-      <section class="inspector" data-tutorial="inspector">
+      <section class="inspector" data-tutorial="inspector"><div class="resize-handle resize-handle-top" data-resize="inspector" title="Drag to resize the selected action menu"></div>
         <div class="inspector-header"><h2>Selected Action</h2><button id="clearSelectionButton" class="tiny-button">Clear</button></div>
         <div class="inspector-tabs"><button class="inspector-tab active" data-inspector-tab="action">Action</button><button class="inspector-tab" data-inspector-tab="special">Special</button><button class="inspector-tab" data-inspector-tab="buffs">Buffs</button></div>
         <div id="inspectorContent" class="empty-inspector">Click an action in the Round Map or a tower in Cumulative View.</div>
