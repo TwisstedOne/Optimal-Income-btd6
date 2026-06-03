@@ -19,5 +19,5 @@
  * { towerId: "banana-farm", minUpgrade: "200", tick: 340, amount: 120, label: "Farm bananas" }
  */
 window.BTD6_TOWER_INCOME_VALUES = [
-    {towerId: "banana-farm", exactUpgrade: "000", tick: 0, amount: 120, label: "Farm bananas"}
+    {towerId: "banana-farm", exactUpgrade: "000", tick: [0, 420, 840, 1260], amount: 120}
 ];
