@@ -131,17 +131,7 @@ window.changeTierValue=function(kind,id,path,delta){
   }
 };
 function getNextSelectedUpgrade(ev,path,delta,current){
-  if(delta>0 && shouldSwapBaseUpgradePath(ev,path,current)){
-    return changeUpgradeTier("000",path,delta);
-  }
   return changeUpgradeTier(current,path,delta);
-}
-function shouldSwapBaseUpgradePath(ev,path,current){
-  if(ev.type!=="upgrade")return false;
-  const from=ev.fromUpgrade||getPreviousUpgradeBefore(ev)||"000";
-  if(from!=="000")return false;
-  const tiers=upgradeNums(current);
-  return tiers[PATH_INDEX[path]]===0 && tiers.reduce((sum,tier)=>sum+tier,0)>0 && tiers.filter(Boolean).length===1;
 }
 
 function renderRoundTable(resetCaches=true){ if(resetCaches)resetTransientCaches(); const activeRound=ensureActiveRound(); const rows=calculateRows(); const rowsByRound=new Map(rows.map(row=>[row.round,row])); el.roundTableBody.innerHTML=""; for(let r=state.settings.roundStart;r<=state.endRound;r++){ const row=rowsByRound.get(r); if(!row)continue; const isActive=r===activeRound; const tick=clamp(Number(state.roundMoneyTicks[r]??0),MIN_ACTION_TICK,TICKS_PER_ROUND); const currentMoney=isActive?calculateMoneyAtRoundTick(row,tick):row.endMoney; const rowClasses=`round-row ${row.conflict?"conflict":"ok"} ${isActive?"active-round":""}`; const summaryRow=document.createElement("tr"); summaryRow.className=`${rowClasses} round-summary-row`; summaryRow.dataset.round=r; summaryRow.title=isActive?"This round is active for tick-by-tick money calculations.":"Click this round to make it the only active tick calculator."; summaryRow.innerHTML=`<td><strong>${r}</strong>${isActive?`<span class="active-round-badge">Active</span>`:""}</td><td class="money-cell">${formatMoney(row.startMoney)}</td><td class="money-cell">${formatMoney(row.popIncome)}</td><td class="money-cell">${formatMoney(row.roundIncome)}</td><td class="money-cell">${formatMoney(row.endIncome)}</td><td>${roundMoneyHtml(r,tick,currentMoney,isActive)}</td><td class="money-cell">${formatMoney(row.endMoney)}</td>`; const actionRow=document.createElement("tr"); actionRow.className=`${rowClasses} round-action-row`; actionRow.dataset.round=r; actionRow.title=summaryRow.title; actionRow.innerHTML=`<td class="round-action-cell" colspan="7"><div class="round-actions">${renderEventChipsForRound(r)}</div></td>`; bindRoundActivation(summaryRow,r); bindRoundActivation(actionRow,r); bindDropHandlers(summaryRow,r); bindDropHandlers(actionRow,r); el.roundTableBody.appendChild(summaryRow); el.roundTableBody.appendChild(actionRow); if(isActive)bindRoundEditors(summaryRow,r,row); } }
