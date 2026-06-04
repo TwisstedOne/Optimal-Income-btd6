@@ -8,7 +8,7 @@
 </head>
 <body>
   <header class="site-header" data-tutorial="header">
-    <div class="site-brand"><span class="brand-mark">🍌</span><span>OptimalBtd6</span></div>
+    <div class="site-brand"><span class="brand-mark">🍌</span><span>OptimalBtd6</span><span class="wip-badge">Work In Progress</span><button id="wipInfoButton" class="wip-info-button" type="button" aria-label="Show work in progress notes" aria-haspopup="dialog" aria-controls="wipInfoPanel">i</button></div>
     <nav class="site-nav" aria-label="Calculator navigation">
       <a class="active" href="index.html">OptimalFarmer</a>
       <a href="optimal-dps.html">OptimalDPS</a>
@@ -96,6 +96,11 @@
   </footer>
 
   <div id="tutorialOverlay" class="tutorial-overlay hidden"><div class="tutorial-shade"></div><div id="tutorialHighlight" class="tutorial-spotlight"></div><div id="tutorialBox" class="tutorial-box"><h2 id="tutorialTitle"></h2><p id="tutorialText"></p><div class="tutorial-actions"><button id="tutorialSkip">Skip</button><button id="tutorialNext">Next</button></div></div></div>
+  <div id="wipInfoPanel" class="wip-info-panel hidden" role="dialog" aria-modal="false" aria-labelledby="wipInfoTitle">
+    <button id="wipInfoClose" class="wip-info-close" type="button" aria-label="Close work in progress notes">×</button>
+    <h2 id="wipInfoTitle">Work In Progress</h2>
+    <p>Add currently working on info text here.</p>
+  </div>
   <div id="toast" class="toast hidden"></div>
 
   <script src="data/images.js"></script>
