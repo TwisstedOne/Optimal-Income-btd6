@@ -116,3 +116,10 @@ body,.site-nav a,p,.panel-header p,.explain-text,.input-label,.toggle-row,.card-
 .round-money-static:hover{border-color:rgba(76,225,126,.7);background:rgba(76,225,126,.16);}
 .round-money-note{font-size:.68rem;color:#e8f6ed;font-weight:850;text-transform:uppercase;letter-spacing:.035em;}
 .plan-totals{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center}.plan-totals span{display:inline-flex;gap:6px;align-items:center;padding:6px 10px;border-radius:999px;background:rgba(15,20,32,.34);border:1px solid rgba(255,255,255,.24);font-weight:950;color:#fff}.plan-totals strong{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:#e7f0ff}.plan-totals small{color:#fff;font-weight:850;opacity:.88}
+
+/* UI polish: keep icon labels separate from input chrome and add breathing room. */
+.input-with-icon{grid-template-columns:30px minmax(0,1fr);}
+.input-with-icon>span[data-icon-key]{display:grid;place-items:center;width:30px;height:30px;background:transparent!important;border:0!important;box-shadow:none!important;border-radius:0!important;}
+.input-with-icon input{grid-column:2;background:#0f1420;}
+.inspector{padding-top:20px;}
+.round-action-cell .round-actions{padding-top:8px;}
