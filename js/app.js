@@ -46,7 +46,8 @@ const el = {
   clearAllButton: document.getElementById("clearAllButton"), planTotals: document.getElementById("planTotals"),
   endRoundInput: document.getElementById("endRoundInput"), buildRoundsButton: document.getElementById("buildRoundsButton"), calculateButton: document.getElementById("calculateButton"),
   roundTableBody: document.getElementById("roundTableBody"), cumulativeList: document.getElementById("cumulativeList"), availableTowerList: document.getElementById("availableTowerList"), geraldoShelf: document.getElementById("geraldoShelf"), existingTowerList: document.getElementById("existingTowerList"), availabilityList: document.getElementById("availabilityList"), inspectorContent: document.getElementById("inspectorContent"), clearSelectionButton: document.getElementById("clearSelectionButton"), toast: document.getElementById("toast"),
-  tutorialOverlay: document.getElementById("tutorialOverlay"), tutorialHighlight: document.getElementById("tutorialHighlight"), tutorialTitle: document.getElementById("tutorialTitle"), tutorialText: document.getElementById("tutorialText"), tutorialSkip: document.getElementById("tutorialSkip"), tutorialNext: document.getElementById("tutorialNext")
+  tutorialOverlay: document.getElementById("tutorialOverlay"), tutorialHighlight: document.getElementById("tutorialHighlight"), tutorialTitle: document.getElementById("tutorialTitle"), tutorialText: document.getElementById("tutorialText"), tutorialSkip: document.getElementById("tutorialSkip"), tutorialNext: document.getElementById("tutorialNext"),
+  wipInfoButton: document.getElementById("wipInfoButton"), wipInfoPanel: document.getElementById("wipInfoPanel"), wipInfoClose: document.getElementById("wipInfoClose")
 };
 
 function init(){ hydrateIcons(); populateHeroes(); indexTowerIncomeValues(); bindGlobalControls(); bindTabs(); bindPanelResizers(); bindDragToDelete(); updateMonkeyKnowledgeIcon(); renderAll(); startTutorial(); }
@@ -68,6 +69,10 @@ function bindGlobalControls(){
   el.clearSelectionButton.addEventListener("click",()=>{ state.selectedEventId=null; state.selectedCumulative=null; renderInspector(); renderRoundTable(); renderCumulativeIfActive(); });
   document.querySelectorAll("[data-inspector-tab]").forEach(button=>button.addEventListener("click",()=>{ state.inspectorTab=button.dataset.inspectorTab; document.querySelectorAll("[data-inspector-tab]").forEach(o=>o.classList.toggle("active",o.dataset.inspectorTab===state.inspectorTab)); renderInspector(); }));
   el.tutorialSkip.addEventListener("click",endTutorial); el.tutorialNext.addEventListener("click",nextTutorialStep);
+  el.wipInfoButton?.addEventListener("click",toggleWipInfo);
+  el.wipInfoClose?.addEventListener("click",hideWipInfo);
+  document.addEventListener("keydown",ev=>{ if(ev.key==="Escape")hideWipInfo(); });
+  document.addEventListener("click",ev=>{ if(el.wipInfoPanel?.classList.contains("hidden"))return; if(ev.target.closest("#wipInfoPanel")||ev.target.closest("#wipInfoButton"))return; hideWipInfo(); });
 }
 function bindSettingInput(element,key,type,after){ element.addEventListener("input",()=>{ state.settings[key]=type==="number"?Number(element.value||0):element.value; if(after) after(); renderRoundTable(); renderCumulativeIfActive(); }); }
 function bindPanelResizers(){ const shell=document.querySelector(".app-shell"), right=document.querySelector(".right-panel"); if(!shell||!right)return; const root=document.documentElement; const drag=(options,startEvent)=>{ startEvent.preventDefault(); document.body.classList.add("is-resizing"); const startX=startEvent.clientX, startY=startEvent.clientY; const startLeft=parseFloat(getComputedStyle(root).getPropertyValue("--left-width"))||320; const startRight=parseFloat(getComputedStyle(root).getPropertyValue("--right-width"))||390; const startInspector=parseFloat(getComputedStyle(root).getPropertyValue("--inspector-height"))||320; const move=ev=>{ if(options.left) root.style.setProperty("--left-width",`${clamp(startLeft+ev.clientX-startX,220,520)}px`); if(options.right) root.style.setProperty("--right-width",`${clamp(startRight+(options.fromRight?ev.clientX-startX:startX-ev.clientX),260,620)}px`); if(options.inspector) root.style.setProperty("--inspector-height",`${clamp(startInspector+startY-ev.clientY,170,Math.max(220,right.clientHeight-170))}px`); }; const up=()=>{ document.body.classList.remove("is-resizing"); window.removeEventListener("mousemove",move); window.removeEventListener("mouseup",up); }; window.addEventListener("mousemove",move); window.addEventListener("mouseup",up); }; document.querySelectorAll("[data-resize]").forEach(handle=>handle.addEventListener("mousedown",ev=>drag({left:handle.dataset.resize==="left",right:handle.dataset.resize==="right"||handle.dataset.resize==="right-edge",fromRight:handle.dataset.resize==="right-edge",inspector:handle.dataset.resize==="inspector"},ev))); }
@@ -110,7 +115,7 @@ window.changeTierValue=function(kind,id,path,delta){
   if(kind==="selected"){
     const ev=state.events.find(e=>e.id===id); if(!ev||!["upgrade","snapshot"].includes(ev.type))return;
     const current=ev.upgrade||ev.snapshotUpgrade||"000"; if(ev.type==="snapshot"&&isFinalUpgrade(current)){showToast("Final upgrade snapshots can only be sold.");return;}
-    const t=getTower(ev.towerId); if(delta<0&&isVillageBottomDowngradeLocked(ev,path,current)){showToast("Village bottom path is locked once farm absorption is available.");return;} const next=changeUpgradeTier(current,path,delta);
+    const t=getTower(ev.towerId); if(delta<0&&isVillageBottomDowngradeLocked(ev,path,current)){showToast("Village bottom path is locked once farm absorption is available.");return;} const next=getNextSelectedUpgrade(ev,path,delta,current);
     if(!next||!isUpgradePatternAllowed(next,t)||!wouldNotBreakT5Limit(ev.towerId,next,ev.monkeyId,ev.round)){showToast("That upgrade breaks path/rule limits.");return;}
     if(isVillage005UpgradeBlocked(ev,next)){showToast("Use the Monkeyopolis Upgrade button after pending at least one absorbed farm.");return;}
     const before={type:ev.type,upgrade:ev.upgrade,fromUpgrade:ev.fromUpgrade,snapshotUpgrade:ev.snapshotUpgrade};
@@ -125,6 +130,19 @@ window.changeTierValue=function(kind,id,path,delta){
     ev.dirty=true; sanitizePlanForRules(); renderAll();
   }
 };
+function getNextSelectedUpgrade(ev,path,delta,current){
+  if(delta>0 && shouldSwapBaseUpgradePath(ev,path,current)){
+    return changeUpgradeTier("000",path,delta);
+  }
+  return changeUpgradeTier(current,path,delta);
+}
+function shouldSwapBaseUpgradePath(ev,path,current){
+  if(ev.type!=="upgrade")return false;
+  const from=ev.fromUpgrade||getPreviousUpgradeBefore(ev)||"000";
+  if(from!=="000")return false;
+  const tiers=upgradeNums(current);
+  return tiers[PATH_INDEX[path]]===0 && tiers.reduce((sum,tier)=>sum+tier,0)>0 && tiers.filter(Boolean).length===1;
+}
 
 function renderRoundTable(resetCaches=true){ if(resetCaches)resetTransientCaches(); const activeRound=ensureActiveRound(); const rows=calculateRows(); const rowsByRound=new Map(rows.map(row=>[row.round,row])); el.roundTableBody.innerHTML=""; for(let r=state.settings.roundStart;r<=state.endRound;r++){ const row=rowsByRound.get(r); if(!row)continue; const isActive=r===activeRound; const tick=clamp(Number(state.roundMoneyTicks[r]??0),MIN_ACTION_TICK,TICKS_PER_ROUND); const currentMoney=isActive?calculateMoneyAtRoundTick(row,tick):row.endMoney; const rowClasses=`round-row ${row.conflict?"conflict":"ok"} ${isActive?"active-round":""}`; const summaryRow=document.createElement("tr"); summaryRow.className=`${rowClasses} round-summary-row`; summaryRow.dataset.round=r; summaryRow.title=isActive?"This round is active for tick-by-tick money calculations.":"Click this round to make it the only active tick calculator."; summaryRow.innerHTML=`<td><strong>${r}</strong>${isActive?`<span class="active-round-badge">Active</span>`:""}</td><td class="money-cell">${formatMoney(row.startMoney)}</td><td class="money-cell">${formatMoney(row.popIncome)}</td><td class="money-cell">${formatMoney(row.roundIncome)}</td><td class="money-cell">${formatMoney(row.endIncome)}</td><td>${roundMoneyHtml(r,tick,currentMoney,isActive)}</td><td class="money-cell">${formatMoney(row.endMoney)}</td>`; const actionRow=document.createElement("tr"); actionRow.className=`${rowClasses} round-action-row`; actionRow.dataset.round=r; actionRow.title=summaryRow.title; actionRow.innerHTML=`<td class="round-action-cell" colspan="7"><div class="round-actions">${renderEventChipsForRound(r)}</div></td>`; bindRoundActivation(summaryRow,r); bindRoundActivation(actionRow,r); bindDropHandlers(summaryRow,r); bindDropHandlers(actionRow,r); el.roundTableBody.appendChild(summaryRow); el.roundTableBody.appendChild(actionRow); if(isActive)bindRoundEditors(summaryRow,r,row); } }
 function roundMoneyHtml(round,tick,currentMoney,isActive){ return isActive?roundMoneySliderHtml(round,tick,currentMoney):`<button class="round-money-static" type="button" onclick="activateRound(${round})"><span class="round-money-value">${formatMoney(currentMoney)}</span><span class="round-money-note">Click to activate ticks</span></button>`; }
@@ -360,6 +378,8 @@ function getHelperMeta(ev){ if(ev.type==="pop-income"||ev.type==="tower-income"|
 function formatMoney(v){return `$${Math.round(Number(v||0)).toLocaleString()}`}
 function makeId(prefix,n){return `${prefix}-${n}`} function clamp(v,min,max){return Math.max(min,Math.min(max,v))}
 function showToast(msg){ el.toast.textContent=msg; el.toast.classList.remove("hidden"); clearTimeout(showToast.t); showToast.t=setTimeout(()=>el.toast.classList.add("hidden"),2300); }
+function toggleWipInfo(){ if(!el.wipInfoPanel)return; el.wipInfoPanel.classList.toggle("hidden"); }
+function hideWipInfo(){ el.wipInfoPanel?.classList.add("hidden"); }
 
 const tutorialSteps=[
   {target:"header",title:"OptimalBtd6",text:"This top bar is where future calculators can live. Farming Planner is the active one right now."},
