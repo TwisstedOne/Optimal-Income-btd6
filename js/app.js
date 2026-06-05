@@ -37,7 +37,9 @@ const state = {
   monkeyTimelineCache: new Map(),
   monkeyStateRoundCache: new Map(),
   monkeyStateMomentCache: new Map(),
-  loanActionCache: new Map()
+  loanActionCache: new Map(),
+  calculatorRunId: 0,
+  calculatorRunning: false
 };
 
 const el = {
@@ -250,41 +252,73 @@ function cleanupInvalidTimelines(){ Object.keys(state.monkeyInstances).forEach(i
 function sanitizeHeroesForSelection(){ Object.values(state.monkeyInstances).forEach(inst=>{ if(inst.kind==="hero"&&inst.heroId!==state.settings.selectedHero)removeMonkey(inst.id); }); if(state.settings.selectedHero!=="geraldo") Object.values(state.monkeyInstances).forEach(inst=>{ if(inst.kind==="geraldo-item")removeMonkey(inst.id); }); }
 function removeEventsBeforeRoundStart(){ const before=state.settings.roundStart; const affected=new Set(state.events.filter(e=>e.round<before&&e.monkeyId).map(e=>e.monkeyId)); state.events=state.events.filter(e=>e.round>=before); affected.forEach(id=>{ if(!state.events.some(e=>e.monkeyId===id)) delete state.monkeyInstances[id]; }); cleanupOrphans(); }
 
-function runCalculator(){
+async function runCalculator(){
   if(state.settings.mode!=="Timed"||state.settings.goal!=="value"){
     showToast("Only Timed, Max Value is available at this moment!");
     return;
   }
+  const runId=++state.calculatorRunId;
+  state.calculatorRunning=true;
+  if(el.calculateButton){ el.calculateButton.disabled=true; el.calculateButton.textContent="Calculating…"; }
   clearGeneratedCalculatorActions();
-  const started=Date.now();
-  const result=buildTimedMaxValuePlan({timeBudgetMs:3500,maxAcceptedActions:90});
-  if(result.bestSnapshot)restoreCalculatorSnapshot(result.bestSnapshot);
-  addGeneratedEndRoundSells(state.endRound,{includeManual:true});
-  refreshGeneratedVillageFarmBuffs();
-  state.activeRound=state.endRound;
-  state.selectedEventId=state.events.filter(e=>e.source==="generated").sort((a,b)=>b.round-a.round||compareEvents(b,a))[0]?.id||null;
   renderAll();
-  showToast(`Calculated Timed Max Value plan: ${formatMoney(result.score||0)} after end-round liquidation in ${Date.now()-started}ms.`);
+  await calculatorPause(40);
+  const started=Date.now();
+  let result={bestSnapshot:null,score:0,accepted:0};
+  try{
+    result=await buildTimedMaxValuePlan({timeBudgetMs:4500,maxAcceptedActions:140,runId,live:true});
+    if(runId!==state.calculatorRunId)return;
+    if(result.bestSnapshot)restoreCalculatorSnapshot(result.bestSnapshot);
+    if(state.settings.goal==="value")addGeneratedEndRoundSells(state.endRound,{includeManual:true});
+    refreshGeneratedVillageFarmBuffs();
+    state.activeRound=state.endRound;
+    state.selectedEventId=state.events.filter(e=>e.source==="generated").sort((a,b)=>b.round-a.round||compareEvents(b,a))[0]?.id||null;
+    renderAll();
+    showToast(`Calculated Timed Max Value plan: ${formatMoney(result.score||0)} total value (${result.accepted||0} accepted actions, ${Date.now()-started}ms).`);
+  }finally{
+    if(runId===state.calculatorRunId){
+      state.calculatorRunning=false;
+      if(el.calculateButton){ el.calculateButton.disabled=false; el.calculateButton.textContent="Calculate"; }
+    }
+  }
 }
-function buildTimedMaxValuePlan({timeBudgetMs=3500,maxAcceptedActions=90}={}){
+function calculatorPause(ms=0){ return new Promise(resolve=>setTimeout(resolve,ms)); }
+async function showCalculatorCandidateLive(candidate,score=null,delay=55){
+  state.selectedEventId=state.events.filter(e=>e.source==="generated").sort((a,b)=>b.round-a.round||compareEvents(b,a))[0]?.id||null;
+  state.activeRound=candidate?.round||state.activeRound;
+  renderAll();
+  showToast(score===null?`Testing ${calculatorCandidateLabel(candidate)}...`:`Accepted ${calculatorCandidateLabel(candidate)} → ${formatMoney(score)} value.`);
+  await calculatorPause(delay);
+}
+function buildTimedMaxValuePlan(options={}){ return buildTimedMaxValuePlanAsync(options); }
+async function buildTimedMaxValuePlanAsync({timeBudgetMs=3500,maxAcceptedActions=90,runId=state.calculatorRunId,live=false}={}){
   const deadline=Date.now()+timeBudgetMs;
-  let bestSnapshot=makeCalculatorSnapshot(), bestScore=scoreTimedMaxValueCandidate().score, accepted=0;
-  for(let pass=0;pass<3&&Date.now()<deadline;pass++){
+  let bestSnapshot=makeCalculatorSnapshot(), bestScore=scoreTimedMaxValueCandidate().score, accepted=0, visualizedAt=0;
+  const opening=applyGreedyFarmOpeningIfUseful(bestScore);
+  if(opening.changed){ bestScore=opening.score; bestSnapshot=makeCalculatorSnapshot(); accepted++; if(live)await showCalculatorCandidateLive({kind:"upgrade",towerId:"banana-farm",round:state.activeRound,tick:MIN_ACTION_TICK},bestScore,90); }
+  for(let pass=0;pass<4&&Date.now()<deadline&&runId===state.calculatorRunId;pass++){
     let improved=true;
-    while(improved&&accepted<maxAcceptedActions&&Date.now()<deadline){
+    while(improved&&accepted<maxAcceptedActions&&Date.now()<deadline&&runId===state.calculatorRunId){
       improved=false;
       let bestCandidate=null, bestCandidateScore=bestScore;
-      const candidates=getCalculatorCandidates();
+      const candidates=getCalculatorCandidates().slice(0,120);
+      let loopEvaluated=0;
       for(const candidate of candidates){
         const before=makeCalculatorSnapshot();
         const ok=applyCalculatorCandidate(candidate);
         if(ok){
           refreshGeneratedVillageFarmBuffs();
+          if(live&&Date.now()-visualizedAt>95){
+            visualizedAt=Date.now();
+            await showCalculatorCandidateLive(candidate,null,35);
+          }
           const scored=scoreTimedMaxValueCandidateWithLookahead(1,deadline);
           if(!scored.conflict&&scored.score>bestCandidateScore+1){ bestCandidate=copyCalculatorCandidate(candidate); bestCandidateScore=scored.score; }
         }
         restoreCalculatorSnapshot(before);
-        if(Date.now()>=deadline)break;
+        loopEvaluated++;
+        if(live&&Date.now()-visualizedAt>120){ renderAll(); await calculatorPause(0); visualizedAt=Date.now(); }
+        if((!bestCandidate&&loopEvaluated>=180)||(bestCandidate&&loopEvaluated>=120)||runId!==state.calculatorRunId)break;
       }
       if(bestCandidate){
         applyCalculatorCandidate(bestCandidate);
@@ -296,46 +330,114 @@ function buildTimedMaxValuePlan({timeBudgetMs=3500,maxAcceptedActions=90}={}){
         }
         accepted++;
         improved=true;
+        if(live)await showCalculatorCandidateLive(bestCandidate,bestScore,90);
       }
     }
   }
   return {bestSnapshot,score:bestScore,accepted};
 }
+
+function applyGreedyFarmOpeningIfUseful(bestScore){
+  let changed=false, score=bestScore;
+  for(let guard=0;guard<40;guard++){
+    const candidate=getGreedyFarmOpeningCandidate();
+    if(!candidate)break;
+    const before=makeCalculatorSnapshot();
+    if(!applyCalculatorCandidate(candidate)){ restoreCalculatorSnapshot(before); break; }
+    refreshGeneratedVillageFarmBuffs();
+    const scored=scoreTimedMaxValueCandidate();
+    if(scored.conflict||scored.score<=score+1){ restoreCalculatorSnapshot(before); break; }
+    score=scored.score; changed=true;
+  }
+  return {changed,score};
+}
+function getGreedyFarmOpeningCandidate(){
+  const start=state.settings.roundStart, end=state.endRound;
+  const farm=Object.values(state.monkeyInstances).filter(inst=>inst.kind==="tower"&&inst.towerId==="banana-farm").sort((a,b)=>a.id.localeCompare(b.id))[0];
+  if(!farm){
+    for(let round=start;round<=end;round++){
+      const tick=MIN_ACTION_TICK, ev={towerId:"banana-farm",round,tick,type:"place",source:"generated"};
+      if(canCalculatorPlaceTower("banana-farm")&&getCalculatorMoneyAtMoment(round,tick)>=getTowerPlacementCost("banana-farm",ev))return {kind:"place",towerId:"banana-farm",round,tick};
+    }
+    return null;
+  }
+  for(let round=start;round<=end;round++){
+    const cur=getMonkeyStateAtMoment(farm.id,round,MIN_ACTION_TICK);
+    if(!cur.placed||cur.sold)continue;
+    const target=getPreferredFarmCalculatorTarget(cur.upgrade);
+    if(!target)continue;
+    const ev={monkeyId:farm.id,towerId:"banana-farm",round,tick:MIN_ACTION_TICK,type:"upgrade",fromUpgrade:cur.upgrade,upgrade:target,source:"generated"};
+    if(getCalculatorMoneyAtMoment(round,MIN_ACTION_TICK)>=calculateUpgradeCostForEvent(ev))return {kind:"upgrade",monkeyId:farm.id,towerId:"banana-farm",fromUpgrade:cur.upgrade,upgrade:target,round,tick:MIN_ACTION_TICK};
+  }
+  return null;
+}
+
 function getCalculatorCandidates(){
   removeGeneratedEndRoundSells();
   resetTransientCaches();
   const candidates=[];
-  const start=state.settings.roundStart, end=state.endRound;
+  const start=state.settings.roundStart, end=state.endRound, moneyCache=new Map();
+  const moneyAt=(round,tick)=>{ const key=`${round}|${tick}`; if(moneyCache.has(key))return moneyCache.get(key); const value=getCalculatorMoneyAtMoment(round,tick); moneyCache.set(key,value); return value; };
+  const canAfford=(cost,round,tick)=>moneyAt(round,tick)>=cost;
   for(let round=start;round<=end;round++){
-    if(canCalculatorPlaceTower("banana-farm"))candidates.push({kind:"place",towerId:"banana-farm",round});
-    if(canCalculatorPlaceTower("monkey-village"))candidates.push({kind:"place",towerId:"monkey-village",round});
+    const actionTicks=getCalculatorActionTicks(round);
+    const farmCount=Object.values(state.monkeyInstances).filter(inst=>inst.kind==="tower"&&inst.towerId==="banana-farm"&&getMonkeyStateAtMoment(inst.id,round,TICKS_PER_ROUND).placed&&!getMonkeyStateAtMoment(inst.id,round,TICKS_PER_ROUND).sold).length;
+    if(farmCount<1&&canCalculatorPlaceTower("banana-farm"))actionTicks.forEach(tick=>{ const ev={towerId:"banana-farm",round,tick,type:"place",source:"generated"}; if(canAfford(getTowerPlacementCost("banana-farm",ev),round,tick))candidates.push({kind:"place",towerId:"banana-farm",round,tick}); });
+    if(canCalculatorPlaceTower("monkey-village"))actionTicks.forEach(tick=>{ const ev={towerId:"monkey-village",round,tick,type:"place",source:"generated"}; if(canAfford(getTowerPlacementCost("monkey-village",ev),round,tick))candidates.push({kind:"place",towerId:"monkey-village",round,tick}); });
     for(const inst of Object.values(state.monkeyInstances)){
       if(inst.kind!=="tower"||(inst.towerId!=="banana-farm"&&inst.towerId!=="monkey-village"))continue;
-      const cur=getMonkeyStateAtMoment(inst.id,round,0);
-      if(!cur.placed||cur.sold||cur.upgrade==="PARAGON"||isExistingDragDisabled(inst,round))continue;
-      const targets=inst.towerId==="banana-farm"?getFarmCalculatorTargets(cur.upgrade):getVillageCalculatorTargets(inst.id,round,cur.upgrade);
-      for(const target of targets){
-        if(isCalculatorUpgradeCandidate(inst,target,cur.upgrade,round))candidates.push({kind:"upgrade",monkeyId:inst.id,towerId:inst.towerId,fromUpgrade:cur.upgrade,upgrade:target,round});
-      }
-      if(inst.towerId==="banana-farm"&&isBankUpgrade(inst.towerId,cur.upgrade)){
-        const bank=getBankStateAtMoment(inst.id,round,0);
-        const nearEnd=end-round<=2;
-        if(bank.bankMoney>=(nearEnd?1:Math.min(3500,getBankCapacity(cur.upgrade)*.55)))candidates.push({kind:"bank-collect",monkeyId:inst.id,towerId:inst.towerId,round});
-        if(canBankTakeDeposits(cur.upgrade)){
-          const cap=getBankCapacity(cur.upgrade), room=Math.max(0,cap-bank.bankMoney);
-          if(room>0)getCalculatorDepositTicks(round).forEach(tick=>candidates.push({kind:"bank-deposit",monkeyId:inst.id,towerId:inst.towerId,round,tick}));
+      for(const tick of actionTicks){
+        const cur=getMonkeyStateAtMoment(inst.id,round,tick);
+        if(!cur.placed||cur.sold||cur.upgrade==="PARAGON"||isExistingDragDisabled(inst,round))continue;
+        const targets=inst.towerId==="banana-farm"?getFarmCalculatorTargets(cur.upgrade,inst.id,round,tick):getVillageCalculatorTargets(inst.id,round,cur.upgrade);
+        for(const target of targets){
+          const ev={monkeyId:inst.id,towerId:inst.towerId,round,tick,type:"upgrade",fromUpgrade:cur.upgrade,upgrade:target,source:"generated"};
+          if(isCalculatorUpgradeCandidate(inst,target,cur.upgrade,round)&&canAfford(calculateUpgradeCostForEvent(ev),round,tick))candidates.push({kind:"upgrade",monkeyId:inst.id,towerId:inst.towerId,fromUpgrade:cur.upgrade,upgrade:target,round,tick});
         }
-        if(Number(cur.upgrade[1]||0)>=4&&!state.events.some(e=>e.source==="generated"&&e.type==="ability"&&e.abilityId==="bank-loan"&&e.monkeyId===inst.id))candidates.push({kind:"bank-loan",monkeyId:inst.id,towerId:inst.towerId,round});
-      }
-      if(inst.towerId==="monkey-village"&&Number(cur.upgrade[2]||0)>=4){
-        const farms=getAbsorbableCalculatorFarms(round).slice(0,8);
-        if(farms.length)candidates.push({kind:"monkeyopolis",monkeyId:inst.id,towerId:inst.towerId,round,farmIds:farms.map(f=>f.id)});
+        if(inst.towerId==="banana-farm"&&isBankUpgrade(inst.towerId,cur.upgrade)){
+          const bank=getBankStateAtMoment(inst.id,round,tick);
+          const nearEnd=end-round<=2;
+          if(bank.bankMoney>=(nearEnd?1:Math.min(3500,getBankCapacity(cur.upgrade)*.55)))candidates.push({kind:"bank-collect",monkeyId:inst.id,towerId:inst.towerId,round,tick});
+          if(canBankTakeDeposits(cur.upgrade)){
+            const cap=getBankCapacity(cur.upgrade), room=Math.max(0,cap-bank.bankMoney);
+            if(room>0)candidates.push({kind:"bank-deposit",monkeyId:inst.id,towerId:inst.towerId,round,tick});
+          }
+          if(Number(cur.upgrade[1]||0)>=4&&!state.events.some(e=>e.source==="generated"&&e.type==="ability"&&e.abilityId==="bank-loan"&&e.monkeyId===inst.id))candidates.push({kind:"bank-loan",monkeyId:inst.id,towerId:inst.towerId,round,tick});
+        }
+        if(inst.towerId==="banana-farm"&&cur.upgrade!=="000"&&isGeneratedCalculatorMonkey(inst.id)&&round<end){
+          candidates.push({kind:"sell",monkeyId:inst.id,towerId:inst.towerId,round,tick});
+        }
+        if(inst.towerId==="monkey-village"&&Number(cur.upgrade[2]||0)>=4){
+          const farms=getAbsorbableCalculatorFarms(round).slice(0,8);
+          if(farms.length)candidates.push({kind:"monkeyopolis",monkeyId:inst.id,towerId:inst.towerId,round,tick,farmIds:farms.map(f=>f.id)});
+        }
       }
     }
   }
-  return candidates.sort((a,b)=>calculatorCandidatePriority(b)-calculatorCandidatePriority(a));
+  return dedupeCalculatorCandidates(candidates).sort((a,b)=>calculatorCandidatePriority(b)-calculatorCandidatePriority(a)||a.round-b.round||(a.tick??0)-(b.tick??0));
 }
-function getFarmCalculatorTargets(current="000"){ return getIncrementalCalculatorUpgradeTargets("banana-farm",current); }
+function getCalculatorMoneyAtMoment(round,tick){
+  const before=state.activeRound;
+  state.activeRound=round;
+  let money=Number(state.settings.startingCash||0), bankState={};
+  for(let r=state.settings.roundStart;r<=round;r++){
+    const through=r===round?clamp(Number(tick??0),MIN_ACTION_TICK,TICKS_PER_ROUND):null;
+    const result=simulateRoundMoney(r,money,through,r!==round,bankState,{expandTowerIncome:r===round});
+    money=result.money; bankState=result.bankState;
+  }
+  state.activeRound=before;
+  return money;
+}
+function getFarmCalculatorTargets(current="000",monkeyId=null,round=state.settings.roundStart,tick=MIN_ACTION_TICK){
+  const forced=getPreferredFarmCalculatorTarget(current);
+  if(forced)return [forced];
+  return getIncrementalCalculatorUpgradeTargets("banana-farm",current);
+}
+function getPreferredFarmCalculatorTarget(current="000"){
+  if(current==="000")return "100";
+  if(current==="100")return "200";
+  return null;
+}
 function getVillageCalculatorTargets(villageId,round,current="000"){
   const targets=getIncrementalCalculatorUpgradeTargets("monkey-village",current);
   if(countPendingVillageFarms(villageId,round)<1)return targets.filter(up=>Number(up[2]||0)<5);
@@ -365,35 +467,49 @@ function isSingleTierUpgrade(next,current="000"){
   }
   return diff===1;
 }
-function getCalculatorDepositTicks(round){ const ticks=new Set([MIN_ACTION_TICK,0,10,20,30,40,50,60,70,80,90,TICKS_PER_ROUND-1]); getEventsForRound(round,{expandTowerIncome:false}).forEach(ev=>{ if(["pop-income","tower-income","ability","bank-collect","sell"].includes(ev.type)){ const tick=clamp(Number(ev.tick||0),MIN_ACTION_TICK,TICKS_PER_ROUND); ticks.add(tick); ticks.add(clamp(tick+1,MIN_ACTION_TICK,TICKS_PER_ROUND)); } }); return [...ticks].sort((a,b)=>a-b); }
-function calculatorCandidatePriority(c){ const up=c.upgrade||"000"; if(c.kind==="bank-collect")return 90; if(c.kind==="bank-deposit")return 86; if(c.kind==="bank-loan")return 82; if(c.kind==="monkeyopolis")return 78; if(c.kind==="upgrade"&&c.towerId==="banana-farm")return 50+Math.max(...upgradeNums(up))*5+(Number(up[1]||0)>=3?8:0); if(c.kind==="upgrade")return 40+Number(up[2]||0)*6; if(c.kind==="place"&&c.towerId==="banana-farm")return 30; return 20; }
+function getCalculatorActionTicks(round){ const ticks=new Set([MIN_ACTION_TICK,0,10,20,30,40,50,60,70,80,90,TICKS_PER_ROUND-1]); getEventsForRound(round,{expandTowerIncome:true}).forEach(ev=>{ if(["pop-income","round-pop-income","tower-income","ability","bank-collect","sell"].includes(ev.type)){ const tick=clamp(Number(ev.tick||0),MIN_ACTION_TICK,TICKS_PER_ROUND); ticks.add(tick); ticks.add(clamp(tick+1,MIN_ACTION_TICK,TICKS_PER_ROUND)); } }); return [...ticks].sort((a,b)=>a-b); }
+function getCalculatorDepositTicks(round){ return getCalculatorActionTicks(round); }
+function dedupeCalculatorCandidates(candidates){ const seen=new Set(); return candidates.filter(c=>{ const key=[c.kind,c.towerId,c.monkeyId,c.round,c.tick,c.fromUpgrade,c.upgrade,(c.farmIds||[]).join(",")].join("|"); if(seen.has(key))return false; seen.add(key); return true; }); }
+function calculatorCandidatePriority(c){ const up=c.upgrade||"000", timing=Math.max(0,MAX_ROUND-c.round)+(TICKS_PER_ROUND-(c.tick??0))/1000; if(c.kind==="bank-collect")return 900+timing; if(c.kind==="bank-deposit")return 860+timing; if(c.kind==="bank-loan")return 820+timing; if(c.kind==="monkeyopolis")return 780+timing; if(c.kind==="sell")return 690+timing; if(c.kind==="upgrade"&&c.towerId==="banana-farm")return 1200+Math.max(...upgradeNums(up))*50+(up==="100"?500:0)+(up==="200"?450:0)+(Number(up[1]||0)>=3?80:0)+timing; if(c.kind==="upgrade")return 400+Number(up[2]||0)*60+timing; if(c.kind==="place"&&c.towerId==="banana-farm")return 300+timing; return 200+timing; }
+function calculatorCandidateLabel(c){ if(!c)return "candidate"; const when=`r${c.round} @${c.tick??0}`; if(c.kind==="place")return `place ${getTower(c.towerId)?.shortName||c.towerId} (${when})`; if(c.kind==="upgrade")return `${getTower(c.towerId)?.shortName||c.towerId} ${c.fromUpgrade||"000"}→${c.upgrade} (${when})`; if(c.kind==="sell")return `sell ${state.monkeyInstances[c.monkeyId]?.label||"farm"} (${when})`; if(c.kind==="bank-loan")return `take IMF loan (${when})`; if(c.kind==="bank-collect")return `collect bank (${when})`; if(c.kind==="bank-deposit")return `deposit bank (${when})`; if(c.kind==="monkeyopolis")return `test Monkeyopolis absorb (${when})`; return `${c.kind} (${when})`; }
 function applyCalculatorCandidate(candidate){
   removeGeneratedEndRoundSells();
   resetTransientCaches();
-  if(candidate.kind==="place")return !!addGeneratedTower(candidate.towerId,candidate.round);
-  if(candidate.kind==="upgrade")return addGeneratedUpgrade(candidate.monkeyId,candidate.towerId,candidate.round,candidate.upgrade,candidate.fromUpgrade);
-  if(candidate.kind==="bank-collect")return addGeneratedSpecial(candidate.monkeyId,candidate.towerId,candidate.round,"bank-collect");
+  if(candidate.kind==="place")return !!addGeneratedTower(candidate.towerId,candidate.round,candidate.tick);
+  if(candidate.kind==="upgrade")return addGeneratedUpgrade(candidate.monkeyId,candidate.towerId,candidate.round,candidate.upgrade,candidate.fromUpgrade,candidate.tick);
+  if(candidate.kind==="sell")return addGeneratedSell(candidate.monkeyId,candidate.towerId,candidate.round,candidate.tick);
+  if(candidate.kind==="bank-collect")return addGeneratedSpecial(candidate.monkeyId,candidate.towerId,candidate.round,"bank-collect",{tick:candidate.tick});
   if(candidate.kind==="bank-deposit")return addGeneratedSpecial(candidate.monkeyId,candidate.towerId,candidate.round,"bank-deposit",{tick:candidate.tick});
-  if(candidate.kind==="bank-loan")return addGeneratedSpecial(candidate.monkeyId,candidate.towerId,candidate.round,"ability",{abilityId:"bank-loan"});
+  if(candidate.kind==="bank-loan")return addGeneratedSpecial(candidate.monkeyId,candidate.towerId,candidate.round,"ability",{abilityId:"bank-loan",tick:candidate.tick});
   if(candidate.kind==="monkeyopolis")return addGeneratedMonkeyopolis(candidate);
   return false;
 }
-function addGeneratedTower(towerId,round){
+function addGeneratedTower(towerId,round,tick=MIN_ACTION_TICK){
   if(!canCalculatorPlaceTower(towerId))return null;
   const tower=getTower(towerId), id=makeId("monkey",state.nextMonkeyNumber++);
   state.monkeyInstances[id]={id,towerId,label:`${tower.shortName||tower.name} #${countExistingTower(towerId)+1}`,kind:"tower"};
-  state.events.push(makeEvent({monkeyId:id,towerId,round,tick:0,type:"place",upgrade:"000",source:"generated"}));
+  state.events.push(makeEvent({monkeyId:id,towerId,round,tick:clamp(Number(tick??MIN_ACTION_TICK),MIN_ACTION_TICK,TICKS_PER_ROUND),type:"place",upgrade:"000",source:"generated"}));
   return id;
 }
-function addGeneratedUpgrade(monkeyId,towerId,round,upgrade,fromUpgrade=null){
-  const cur=getMonkeyStateAtMoment(monkeyId,round,0);
-  const ev=makeEvent({monkeyId,towerId,round,tick:0,type:"upgrade",fromUpgrade:fromUpgrade||cur.upgrade||"000",upgrade,source:"generated"});
+function addGeneratedUpgrade(monkeyId,towerId,round,upgrade,fromUpgrade=null,tick=MIN_ACTION_TICK){
+  tick=clamp(Number(tick??MIN_ACTION_TICK),MIN_ACTION_TICK,TICKS_PER_ROUND);
+  const cur=getMonkeyStateAtMoment(monkeyId,round,tick);
+  const ev=makeEvent({monkeyId,towerId,round,tick,type:"upgrade",fromUpgrade:fromUpgrade||cur.upgrade||"000",upgrade,source:"generated"});
+  state.events.push(ev); resetTransientCaches();
+  const err=validateMonkeyTimeline(monkeyId); if(err){ state.events=state.events.filter(e=>e.id!==ev.id); resetTransientCaches(); return false; }
+  return true;
+}
+function addGeneratedSell(monkeyId,towerId,round,tick=TICKS_PER_ROUND){
+  const inst=state.monkeyInstances[monkeyId], cur=getMonkeyStateAtMoment(monkeyId,round,tick);
+  if(!inst||!cur.placed||cur.sold||cur.upgrade==="000")return false;
+  const ev=makeEvent({monkeyId,towerId,round,tick:clamp(Number(tick??TICKS_PER_ROUND),MIN_ACTION_TICK,TICKS_PER_ROUND),type:"sell",source:"generated"});
   state.events.push(ev); resetTransientCaches();
   const err=validateMonkeyTimeline(monkeyId); if(err){ state.events=state.events.filter(e=>e.id!==ev.id); resetTransientCaches(); return false; }
   return true;
 }
 function addGeneratedSpecial(monkeyId,towerId,round,type,extra={}){
   const ev=makeEvent({monkeyId,towerId,round,tick:type==="ability"?1:0,type,source:"generated",...extra});
+  ev.tick=clamp(Number(ev.tick??(type==="ability"?1:0)),MIN_ACTION_TICK,TICKS_PER_ROUND);
   state.events.push(ev); resetTransientCaches();
   const err=validateMonkeyTimeline(monkeyId); if(err){ state.events=state.events.filter(e=>e.id!==ev.id); resetTransientCaches(); return false; }
   return true;
@@ -404,13 +520,14 @@ function addGeneratedMonkeyopolis(candidate){
   for(const farmId of candidate.farmIds||[]){
     const farm=state.monkeyInstances[farmId], farmState=getMonkeyStateAtRound(farmId,candidate.round);
     if(!farm||farm.absorbedBy||farm.towerId!=="banana-farm"||!farmState.placed||farmState.sold||isFinalUpgrade(farmState.upgrade))continue;
-    const ev=makeEvent({monkeyId:candidate.monkeyId,towerId:village.towerId,round:candidate.round,tick:0,type:"absorb",source:"generated",absorbedMonkeyIds:[farmId],absorbMode:"farms",absorbedMoneySpent:calculateTotalSpentOnMonkeyUntilRound(farmId,candidate.round)});
+    const ev=makeEvent({monkeyId:candidate.monkeyId,towerId:village.towerId,round:candidate.round,tick:clamp(Number(candidate.tick??0),MIN_ACTION_TICK,TICKS_PER_ROUND),type:"absorb",source:"generated",absorbedMonkeyIds:[farmId],absorbMode:"farms",absorbedMoneySpent:calculateTotalSpentOnMonkeyUntilRound(farmId,candidate.round)});
     state.events.push(ev); markAbsorbed(farmId,ev.id,"pending-village",candidate.round); absorbed++;
   }
   if(!absorbed)return false;
   refreshVillageAbsorbTotals();
-  const cur=getMonkeyStateAtMoment(candidate.monkeyId,candidate.round,0);
-  return addGeneratedUpgrade(candidate.monkeyId,village.towerId,candidate.round,getMonkeyopolisUpgradeCode(cur.upgrade||"004"),cur.upgrade||"004");
+  const tick=clamp(Number(candidate.tick??0),MIN_ACTION_TICK,TICKS_PER_ROUND);
+  const cur=getMonkeyStateAtMoment(candidate.monkeyId,candidate.round,tick);
+  return addGeneratedUpgrade(candidate.monkeyId,village.towerId,candidate.round,getMonkeyopolisUpgradeCode(cur.upgrade||"004"),cur.upgrade||"004",tick);
 }
 function getAbsorbableCalculatorFarms(round){ return Object.values(state.monkeyInstances).filter(inst=>{ if(inst.kind!=="tower"||inst.towerId!=="banana-farm"||inst.absorbedBy)return false; const cur=getMonkeyStateAtRound(inst.id,round); return cur.placed&&!cur.sold&&!isFinalUpgrade(cur.upgrade); }).sort((a,b)=>calculateTotalSpentOnMonkeyUntilRound(b.id,round)-calculateTotalSpentOnMonkeyUntilRound(a.id,round)); }
 function refreshGeneratedVillageFarmBuffs(){
@@ -441,17 +558,32 @@ function removeGeneratedEndRoundSells(){ state.events=state.events.filter(e=>!(e
 function isGeneratedCalculatorMonkey(monkeyId){ return state.events.some(e=>e.source==="generated"&&["place","place-hero","place-geraldo-item","paragon"].includes(e.type)&&e.monkeyId===monkeyId); }
 function scoreTimedMaxValueCandidate(){
   const before=makeCalculatorSnapshot();
-  addGeneratedEndRoundSells(state.endRound,{includeManual:true});
   const rows=calculateRows(), last=rows[rows.length-1];
-  const result={score:last?.endMoney??Number.NEGATIVE_INFINITY,conflict:rows.some(r=>r.conflict)};
+  const endMoney=last?.endMoney??Number.NEGATIVE_INFINITY;
+  const ownedValue=getCalculatorOwnedAssetValue(state.endRound,TICKS_PER_ROUND);
+  const futureIncomeValue=getCalculatorFutureIncomeValue(state.endRound,TICKS_PER_ROUND);
+  const result={score:endMoney+ownedValue+futureIncomeValue,liquidatedScore:endMoney,ownedValue,futureIncomeValue,conflict:rows.some(r=>r.conflict)};
   restoreCalculatorSnapshot(before);
   return result;
+}
+function getCalculatorOwnedAssetValue(round,tick){
+  return Object.values(state.monkeyInstances).filter(inst=>inst.kind==="tower"&&isGeneratedCalculatorMonkey(inst.id)).reduce((sum,inst)=>{
+    const cur=getMonkeyStateAtMoment(inst.id,round,tick);
+    if(!cur.placed||cur.sold||isExistingDragDisabled(inst,round))return sum;
+    return sum+calculateSellValue(inst.id,round,tick);
+  },0);
+}
+function getCalculatorFutureIncomeValue(round,tick){
+  const horizon=Math.min(MAX_ROUND,round+25);
+  let total=0;
+  for(let r=round+1;r<=horizon;r++)total+=getTowerIncomeForRound(r).filter(item=>item.inst.kind==="tower"&&isGeneratedCalculatorMonkey(item.inst.id)).reduce((sum,item)=>sum+Number(item.amount||0),0);
+  return total*.35;
 }
 function scoreTimedMaxValueCandidateWithLookahead(depth=0,deadline=Date.now()){
   const direct=scoreTimedMaxValueCandidate();
   if(depth<=0||direct.conflict||Date.now()>=deadline)return direct;
   let best=direct;
-  const candidates=getCalculatorCandidates().slice(0,36);
+  const candidates=getCalculatorCandidates().slice(0,40);
   for(const candidate of candidates){
     const before=makeCalculatorSnapshot();
     const ok=applyCalculatorCandidate(candidate);
