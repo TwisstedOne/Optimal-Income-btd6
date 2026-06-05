@@ -280,7 +280,7 @@ function buildTimedMaxValuePlan({timeBudgetMs=3500,maxAcceptedActions=90}={}){
         const ok=applyCalculatorCandidate(candidate);
         if(ok){
           refreshGeneratedVillageFarmBuffs();
-          const scored=scoreTimedMaxValueCandidate();
+          const scored=scoreTimedMaxValueCandidateWithLookahead(1,deadline);
           if(!scored.conflict&&scored.score>bestCandidateScore+1){ bestCandidate=copyCalculatorCandidate(candidate); bestCandidateScore=scored.score; }
         }
         restoreCalculatorSnapshot(before);
@@ -289,8 +289,11 @@ function buildTimedMaxValuePlan({timeBudgetMs=3500,maxAcceptedActions=90}={}){
       if(bestCandidate){
         applyCalculatorCandidate(bestCandidate);
         refreshGeneratedVillageFarmBuffs();
-        bestScore=scoreTimedMaxValueCandidate().score;
-        bestSnapshot=makeCalculatorSnapshot();
+        const currentScore=scoreTimedMaxValueCandidate().score;
+        if(currentScore>bestScore+1){
+          bestScore=currentScore;
+          bestSnapshot=makeCalculatorSnapshot();
+        }
         accepted++;
         improved=true;
       }
@@ -310,7 +313,7 @@ function getCalculatorCandidates(){
       if(inst.kind!=="tower"||(inst.towerId!=="banana-farm"&&inst.towerId!=="monkey-village"))continue;
       const cur=getMonkeyStateAtMoment(inst.id,round,0);
       if(!cur.placed||cur.sold||cur.upgrade==="PARAGON"||isExistingDragDisabled(inst,round))continue;
-      const targets=inst.towerId==="banana-farm"?getFarmCalculatorTargets():getVillageCalculatorTargets(inst.id,round);
+      const targets=inst.towerId==="banana-farm"?getFarmCalculatorTargets(cur.upgrade):getVillageCalculatorTargets(inst.id,round,cur.upgrade);
       for(const target of targets){
         if(isCalculatorUpgradeCandidate(inst,target,cur.upgrade,round))candidates.push({kind:"upgrade",monkeyId:inst.id,towerId:inst.towerId,fromUpgrade:cur.upgrade,upgrade:target,round});
       }
@@ -332,10 +335,36 @@ function getCalculatorCandidates(){
   }
   return candidates.sort((a,b)=>calculatorCandidatePriority(b)-calculatorCandidatePriority(a));
 }
-function getFarmCalculatorTargets(){ return ["200","202","203","204","205","020","023","024","025","030","032","040","042","050","052","230","240","250","300","320","400","420","500","520","002","003","004","005"]; }
-function getVillageCalculatorTargets(villageId,round){ const base=["001","002","102","202","003","004","104","204"]; if(countPendingVillageFarms(villageId,round)>0)base.push("005","105","205"); return base; }
+function getFarmCalculatorTargets(current="000"){ return getIncrementalCalculatorUpgradeTargets("banana-farm",current); }
+function getVillageCalculatorTargets(villageId,round,current="000"){
+  const targets=getIncrementalCalculatorUpgradeTargets("monkey-village",current);
+  if(countPendingVillageFarms(villageId,round)<1)return targets.filter(up=>Number(up[2]||0)<5);
+  return targets;
+}
+function getIncrementalCalculatorUpgradeTargets(towerId,current="000"){
+  const tower=getTower(towerId), nums=upgradeNums(current), targets=[];
+  if(!tower)return targets;
+  for(let path=0;path<3;path++){
+    const nextTier=nums[path]+1;
+    if(nextTier>(tower.maxPathTiers?.[PATH_KEYS[path]]??5))continue;
+    const next=[...nums];
+    next[path]=nextTier;
+    const upgrade=next.join("");
+    if(isUpgradePatternAllowed(upgrade,tower))targets.push(upgrade);
+  }
+  return targets;
+}
 function canCalculatorPlaceTower(towerId){ const tower=getTower(towerId); return !!(tower?.enabled&&hasAnyAvailablePath(tower)&&!wouldBreakTowerLimits(towerId)); }
-function isCalculatorUpgradeCandidate(inst,target,current,round){ const tower=getTower(inst.towerId); if(!tower||!isUpgradePatternAllowed(target,tower)||!isUpgradeStrictlyGreater(target,current)||!wouldNotBreakT5Limit(inst.towerId,target,inst.id,round))return false; if(inst.towerId==="monkey-village"&&Number(current[2]||0)<5&&Number(target[2]||0)>=5&&countPendingVillageFarms(inst.id,round)<1)return false; return true; }
+function isCalculatorUpgradeCandidate(inst,target,current,round){ const tower=getTower(inst.towerId); if(!tower||!isUpgradePatternAllowed(target,tower)||!isUpgradeStrictlyGreater(target,current)||!isSingleTierUpgrade(target,current)||!wouldNotBreakT5Limit(inst.towerId,target,inst.id,round))return false; if(inst.towerId==="monkey-village"&&Number(current[2]||0)<5&&Number(target[2]||0)>=5&&countPendingVillageFarms(inst.id,round)<1)return false; return true; }
+function isSingleTierUpgrade(next,current="000"){
+  const n=upgradeNums(next), c=upgradeNums(current);
+  let diff=0;
+  for(let i=0;i<3;i++){
+    if(n[i]<c[i])return false;
+    diff+=n[i]-c[i];
+  }
+  return diff===1;
+}
 function getCalculatorDepositTicks(round){ const ticks=new Set([MIN_ACTION_TICK,0,10,20,30,40,50,60,70,80,90,TICKS_PER_ROUND-1]); getEventsForRound(round,{expandTowerIncome:false}).forEach(ev=>{ if(["pop-income","tower-income","ability","bank-collect","sell"].includes(ev.type)){ const tick=clamp(Number(ev.tick||0),MIN_ACTION_TICK,TICKS_PER_ROUND); ticks.add(tick); ticks.add(clamp(tick+1,MIN_ACTION_TICK,TICKS_PER_ROUND)); } }); return [...ticks].sort((a,b)=>a-b); }
 function calculatorCandidatePriority(c){ const up=c.upgrade||"000"; if(c.kind==="bank-collect")return 90; if(c.kind==="bank-deposit")return 86; if(c.kind==="bank-loan")return 82; if(c.kind==="monkeyopolis")return 78; if(c.kind==="upgrade"&&c.towerId==="banana-farm")return 50+Math.max(...upgradeNums(up))*5+(Number(up[1]||0)>=3?8:0); if(c.kind==="upgrade")return 40+Number(up[2]||0)*6; if(c.kind==="place"&&c.towerId==="banana-farm")return 30; return 20; }
 function applyCalculatorCandidate(candidate){
@@ -417,6 +446,24 @@ function scoreTimedMaxValueCandidate(){
   const result={score:last?.endMoney??Number.NEGATIVE_INFINITY,conflict:rows.some(r=>r.conflict)};
   restoreCalculatorSnapshot(before);
   return result;
+}
+function scoreTimedMaxValueCandidateWithLookahead(depth=0,deadline=Date.now()){
+  const direct=scoreTimedMaxValueCandidate();
+  if(depth<=0||direct.conflict||Date.now()>=deadline)return direct;
+  let best=direct;
+  const candidates=getCalculatorCandidates().slice(0,36);
+  for(const candidate of candidates){
+    const before=makeCalculatorSnapshot();
+    const ok=applyCalculatorCandidate(candidate);
+    if(ok){
+      refreshGeneratedVillageFarmBuffs();
+      const scored=scoreTimedMaxValueCandidateWithLookahead(depth-1,deadline);
+      if(!scored.conflict&&scored.score>best.score)best={score:scored.score,conflict:false};
+    }
+    restoreCalculatorSnapshot(before);
+    if(Date.now()>=deadline)break;
+  }
+  return best;
 }
 function makeCalculatorSnapshot(){ return JSON.parse(JSON.stringify({events:state.events,monkeyInstances:state.monkeyInstances,buffs:state.buffs,paragonHistory:state.paragonHistory,nextEventNumber:state.nextEventNumber,nextMonkeyNumber:state.nextMonkeyNumber,nextBuffNumber:state.nextBuffNumber,nextParagonNumber:state.nextParagonNumber,selectedEventId:state.selectedEventId,selectedCumulative:state.selectedCumulative,activeRound:state.activeRound})); }
 function restoreCalculatorSnapshot(snap){ state.events=JSON.parse(JSON.stringify(snap.events||[])); state.monkeyInstances=JSON.parse(JSON.stringify(snap.monkeyInstances||{})); state.buffs=JSON.parse(JSON.stringify(snap.buffs||[])); state.paragonHistory=JSON.parse(JSON.stringify(snap.paragonHistory||{})); state.nextEventNumber=snap.nextEventNumber; state.nextMonkeyNumber=snap.nextMonkeyNumber; state.nextBuffNumber=snap.nextBuffNumber; state.nextParagonNumber=snap.nextParagonNumber; state.selectedEventId=snap.selectedEventId||null; state.selectedCumulative=snap.selectedCumulative||null; state.activeRound=snap.activeRound||state.settings.roundStart; resetTransientCaches(); }
